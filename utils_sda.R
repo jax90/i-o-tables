@@ -14,6 +14,12 @@ compute_a = function(z,d)
   return(a)
 }
 
+compute_l = function(a)
+{
+  l = solve( diag(nrow = dim(a)[1]) - a )
+  return(l)
+}
+
 #Perform production footprint computations - main method of the paper.
 #Using the second identified method, that is time-saving. Exactly equivalent to Janna's method
 
@@ -90,11 +96,13 @@ io_aggregation_methods = function(d, #Final demand vector
 
 #Import all economic data from FIGARO and the corresponding emissions vector from Eurostat 'env_ac_ghgfp' database (Eurostat estimates)
 
-fetch_format_data = function(year)
+fetch_format_data = function(year,folder = NULL,ghg = T)
 {
   ####IMPORT FIGARO####
 
   #Detect corresponding tables
+
+  if(all(is.null(folder))){
 
   links = read_html("https://ec.europa.eu/eurostat/web/esa-supply-use-input-tables/database") %>%
     html_nodes("a") %>%
@@ -110,6 +118,14 @@ fetch_format_data = function(year)
 
   rm(links,linkZ)
 
+  }else{
+
+    csv_file = data.frame(file_path = list.files(folder,full.names = T) %>% subset(grepl("matrix_eu-ic-io_ind-by-ind",.))) %>%
+      mutate(local_year = substr(file_path,regexpr("ed_",file_path)+3,regexpr("ed_",file_path)+6)) %>%
+      filter(local_year == year)
+
+    rawZ = fread(csv_file$file_path)
+  }
   #Format tables and vectors
 
   transaction_flows = rawZ %>%
@@ -142,6 +158,8 @@ fetch_format_data = function(year)
 
   rm(rawZ)
 
+  if(ghg)
+  {
   ###Import GHG data
 
   ghg_eurostat =
@@ -169,6 +187,20 @@ fetch_format_data = function(year)
   )
 
 
+  }else{
+
+  list_data = list(
+    transaction_flows = transaction_flows,
+    distributed_demand = distributed_demand,
+    aggregated_demand = aggregated_demand,
+    intermediate_consumption = intermediate_consumption,
+    production = production,
+    value_added = value_added
+  )
+  }
+
+
+  return(list_data)
 }
 
 #Format data type by type rather than year by year
@@ -246,13 +278,15 @@ sda_params = function(data,previous_year,current_year,selected_industry)
   params$previous_technology = compute_a(
     z = data$transaction_flows[[as.character(previous_year)]],
     d = data$aggregated_demand[[as.character(previous_year)]]
-  )
+  ) %>%
+    compute_l()
 
   #current_technology
   params$current_technology = compute_a(
     z = data$transaction_flows[[as.character(current_year)]],
     d = data$aggregated_demand[[as.character(current_year)]]
-  )
+  ) %>%
+    compute_l()
 
   #current_technology_previous_ict
 
@@ -288,4 +322,135 @@ sda_params = function(data,previous_year,current_year,selected_industry)
 
   return(params)
 
+}
+
+compute_full_prod = function(params,selected_industry)
+{
+
+  selected_industry_num = which(colnames(params$previous_technology) %in% selected_industry)
+
+  list_prod = c()
+
+  for(i in c("previous_technology","previous_technology_current_ict","current_technology_previous_ict","current_technology"))
+  {
+    for(j in c("previous_final_demand","previous_final_demand_current_ict","current_final_demand_previous_ict","current_final_demand"))
+    {
+      add = data.frame(a = i,
+                       d = j) %>%
+        mutate(x = list(data.frame(x = params[[i]] %*% params[[j]]))) %>%
+        mutate(sub_x = list(x[[1]][selected_industry_num,"x",drop = F])) %>%
+        mutate(sub_invL = list(data.frame(solve(params[[i]][selected_industry_num,selected_industry_num])))) %>%
+        mutate(prescaling_sub_prod = list(data.frame(as.matrix(sub_invL[[1]]) %*% as.matrix(sub_x[[1]])))) %>%
+        mutate(full_prod = list(data.frame(params[[i]][,selected_industry_num] %*% as.matrix(prescaling_sub_prod[[1]])))) %>%
+        select(a,d,full_prod)
+
+      list_prod = list_prod %>% rbind(add)
+    }
+  }
+
+
+  return(list_prod)
+}
+
+compute_footprints = function(params,full_prods)
+{
+
+  selected_industry_num = which(colnames(params$previous_technology) %in% selected_industry)
+
+  list_footprint = c()
+
+  for(i in  c("previous_emissions_intensity","previous_emissions_intensity_current_ict","current_emissions_intensity_previous_ict","current_emissions_intensity"))
+  {
+    add = full_prods %>%
+      mutate(c = list(data.frame(params[[i]]))) %>%
+      mutate(fpt = t(as.matrix(c[[1]])) %*% as.matrix(full_prod[[1]]))
+  }
+
+
+}
+
+io_aggregation_methods_sda = function(params)
+{
+  ####CHECK INPUT PARAMETERS####
+
+  params$previous_technology
+  params$previous_technology_current_ict
+  params$current_technology_previous_ict
+  params$current_technology
+
+  params$previous_final_demand
+  params$previous_final_demand_current_ict
+  params$current_final_demand_previous_ict
+  params$current_final_demand
+
+  params$previous_emissions_intensity
+  params$previous_emissions_intensity_current_ict
+  params$current_emissions_intensity_previous_ict
+  params$current_emissions_intensity
+
+  selected_industry = rownames(params$previous_technology) %>% subset(grepl("C26|J61|J62_63",.))
+
+  ####DEFINE COMMON VARIABLES#####
+
+  full_prods = compute_full_prod(params,selected_industry)
+
+  ####COMPUTE THE CORRESPONDING FOOTPRINT####
+
+  footprints = compute_footprint(full_prods,params)
+
+  fpt000 = t(c0) %*% full_prod00
+
+  fpt010 = t(c0) %*% full_prod01
+
+  print(paste0("change demand = ",( fpt000 - fpt010) / 1000000))
+
+  fpt100 = t(c0) %*% full_prod10
+
+  print(paste0("change techno = ",( fpt000 - fpt100) / 1000000))
+
+  fpt110 = t(c0) %*% full_prod11
+
+  print(paste0("change demand and techno = ",( fpt000 - fpt110) / 1000000))
+
+  fpt001 = t(c1) %*% full_prod00
+
+  print(paste0("change intens = ",( fpt000 - fpt001) / 1000000))
+
+  fpt101 = t(c1) %*% full_prod10
+
+  print(paste0("change intens and techno = ",( fpt000 - fpt101) / 1000000))
+
+  fpt011 = t(c1) %*% full_prod01
+
+  print(paste0("change intens and demand = ",( fpt000 - fpt011) / 1000000))
+
+  fpt111 = t(c1) %*% full_prod11
+
+  print(paste0("change intens and demand and techno = ",( fpt000 - fpt111) / 1000000))
+
+  fpt000 * 3 - fpt001 - fpt110
+
+  ####FORMAT AND RETURN RESULTS####
+
+  formatted_results = full_prod %>%
+    as.data.frame() %>%
+    `rownames<-`(colnames(a)) %>%
+    `colnames<-`("Total Requirements") %>%
+    mutate(`Initial Production` = case_when(rownames(.) %in% selected_industry ~ sub_x[match(rownames(.),rownames(sub_x))],
+                                            T ~ 0),
+           `Additional intermediate requirements` = `Total Requirements` - `Initial Production`,
+           `Impact intensity per unit of output` = c[match(rownames(.),rownames(c)),1],
+           `Distributed footprint` = `Impact intensity per unit of output` * `Total Requirements`) %>%
+    select(`Initial Production`,`Additional intermediate requirements`,`Total Requirements`,`Impact intensity per unit of output`,`Distributed footprint`) %>%
+    rownames_to_column("industry")
+
+  TOTAL_results = data.frame(industry = "TOTAL",
+                             t(colSums(formatted_results[,-1],na.rm = T)),
+                             check.names = F) %>%
+    select(!c(`Impact intensity per unit of output`))
+
+  if(unlist(round(fpt)) != round(TOTAL_results$`Distributed footprint`)) warning(paste0("Aggregated computed footprint = ",fpt))
+
+  return(list(`Full results` = formatted_results,
+              `Totals` = TOTAL_results))
 }
