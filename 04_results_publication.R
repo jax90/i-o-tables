@@ -16,6 +16,7 @@ library(hrbrthemes)
 #library(webshot)
 #library(htmlwidgets)
 library(scales)
+library(xtable)
 
 
 setwd("C:/Users/JAX/Desktop/sektor_analyse")
@@ -50,20 +51,20 @@ fd_emissions_over_time <- ggplot(fig_frame, aes(x = as.integer(time_period))) +
   
   geom_line(aes(y = embodied_total / 1000, linetype = "total demand", color = "absolute")) +
   geom_text(aes(y = embodied_total / 1000, label = round(embodied_total / 1000)), 
-            vjust = -0.5, color = "#0072B2", size = 3.5, family = "serif") +
+            vjust = -0.5, color = "#0072B2", size = 4.5, family = "serif") +
   
   geom_line(aes(y = rel_embodied_total * 100 * 100, linetype = "total demand", color = "relative")) +
   geom_text(aes(y = rel_embodied_total * 100 * 100, label = round(rel_embodied_total * 100, 2)), 
-            vjust = -0.5, color = "#D55E00", size = 3.5 , family = "serif") +
+            vjust = -0.5, color = "#D55E00", size = 4.5 , family = "serif") +
   
-  geom_line(aes(y = embodied_final / 1000, linetype = "final demand", color = "absolute")) +
-  geom_text(aes(y = embodied_final / 1000, label = round(embodied_final / 1000)), 
-            vjust = -0.5, color = "#0072B2", size = 3.5, family = "serif") +
-  
-  geom_line(aes(y = rel_embodied_final * 100 * 100, linetype = "final demand", color = "relative")) +
-  geom_text(aes(y = rel_embodied_final * 100 * 100, label = round(rel_embodied_final * 100, 2)), 
-            vjust = -0.5, color = "#D55E00", size = 3.5 , family = "serif") +
-  
+  # geom_line(aes(y = embodied_final / 1000, linetype = "final demand", color = "absolute")) +
+  # geom_text(aes(y = embodied_final / 1000, label = round(embodied_final / 1000)), 
+  #           vjust = -0.5, color = "#0072B2", size = 4.5, family = "serif") +
+  # 
+  # geom_line(aes(y = rel_embodied_final * 100 * 100, linetype = "final demand", color = "relative")) +
+  # geom_text(aes(y = rel_embodied_final * 100 * 100, label = round(rel_embodied_final * 100, 2)), 
+  #           vjust = -0.5, color = "#D55E00", size = 4.5, family = "serif") +
+  # 
   scale_linetype_manual(values = c("final demand" = "dashed", "total demand" = "solid"),
                         name = "") +
   
@@ -82,11 +83,13 @@ fd_emissions_over_time <- ggplot(fig_frame, aes(x = as.integer(time_period))) +
   theme_tufte() +
   theme(
     legend.position = "bottom",
-    text = element_text(size = 12),  # Set overall text size
-    axis.title = element_text(size = 12),  # Set axis title size
-    legend.text = element_text(size = 12),  # Set legend text size
-    legend.title = element_text(size = 12),  # Set legend title size
-    strip.text = element_text(size = 12)    # Set facet strip text size
+    text = element_text(size = 14),  # Set overall text size
+     axis.title = element_text(size = 14),  # Set axis title size
+     axis.text = element_text(size = 14),  # Set axis title size
+     legend.text = element_text(size = 14),  # Set legend text size
+     legend.title = element_text(size = 14),  # Set legend title size
+     strip.text = element_text(size = 14)    # Set facet strip text size
+  # 
   )
 
 fd_emissions_over_time
@@ -118,16 +121,21 @@ emissions_over_time_by_industry <- fig_frame_industry |>
   labs(x = "year", y = "CO2e in mt", fill = "") +
   scale_fill_manual(values = c(
     "mediated via other industries" = "grey",
-    "hardware" = "#56B4E9", 
-    "communications" = "#009E73", 
-    "IT services" = "#F0E442")) +
+    "hardware" = "#68011f", 
+    "communications" = "#f2a27d", 
+    "IT services" =  "#2367ae")) +
+  # "hardware" = "#56B4E9", 
+  # "communications" = "#009E73", 
+  # "IT services" = "#F0E442")) +
   theme_tufte() +
   theme(legend.position = "bottom",
-        text = element_text(size = 12),  # Increase overall text size
-        axis.title = element_text(size = 12),  # Increase axis titles size
-        legend.text = element_text(size = 12),  # Increase legend text size
-        legend.title = element_text(size = 12),  # Increase legend title size
-        strip.text = element_text(size = 12)  # Increase facet strip text size if you use facets
+        text = element_text(size = 14),  # Set overall text size
+        axis.title = element_text(size = 14),  # Set axis title size
+        axis.text = element_text(size = 14),  # Set axis title size
+        legend.text = element_text(size = 14),  # Set legend text size
+        legend.title = element_text(size = 14),  # Set legend title size
+        strip.text = element_text(size = 14)    # Set facet strip text size
+        # Increase facet strip text size if you use facets
   ) +
   guides(fill = guide_legend(nrow = 1, reverse = TRUE), colour = guide_legend(nrow = 1))
 
@@ -137,96 +145,72 @@ ggsave("./results/figures/emissions_over_time_by_industry.pdf",
        plot = emissions_over_time_by_industry, width = 8, height = 6, dpi = 300)
 
 
-emissions_over_time_by_industry <- fig_frame_industry |>
-  mutate(industry = factor(industry, levels = industry_order)) |>
-  # mutate(across(c(direct, indirect), ~ ./absolute_emissions)) |>
-  ggplot(aes(x = as.integer(time_period), y = embodied_emissions/1000, group = industry, fill = industry)) + 
-  geom_area(position = "stack") +
-  labs(x = "year", y = "CO2e in mt", fill = "") +
-  scale_fill_manual(values = c(
-    "mediated via other industries" = "grey",
-    "hardware" = "#56B4E9", 
-    "communications" = "#009E73", 
-    "IT services" = "#F0E442")) +
-  theme_tufte() +
-  theme(legend.position = "bottom",
-        text = element_text(size = 12),  # Increase overall text size
-        axis.title = element_text(size = 12),  # Increase axis titles size
-        legend.text = element_text(size = 12),  # Increase legend text size
-        legend.title = element_text(size = 12),  # Increase legend title size
-        strip.text = element_text(size = 12)  # Increase facet strip text size if you use facets
-  ) +
-  guides(fill = guide_legend(nrow = 1, reverse = TRUE), colour = guide_legend(nrow = 1))
-
-emissions_over_time_by_industry
-
-
-
+fig_frame_industry |>  
+  pivot_wider(names_from="industry", 
+              values_from="embodied_emissions") |> 
+  rename(year = time_period) |> 
+  xtable()
   
   #industry_order <- c( "hardware",  "communications", "IT services")
 
 # % scope 1, 2, 3 emissions
-scopes <- df |> 
-  select(time_period, industry, country, direct_emissions, scope_2, matches("embodied_emissions")) |>
-  rename(scope_1 = direct_emissions ) |> 
-  mutate(embodied_emissions = rowSums(df |> select(starts_with("embodied_emissions")), na.rm = TRUE)) |> 
-  group_by(time_period) |> 
-    mutate(scope_3  = sum(embodied_emissions, na.rm = TRUE)) |> 
-  ungroup() |> 
-  filter(grepl("(26|61|62|63)", industry)) |> 
-  select(time_period,  matches("scope")) |> 
-   group_by(time_period) |> 
-    mutate(scope_1  = sum(scope_1, na.rm = TRUE)) |> 
-    mutate(scope_2  = sum(scope_2, na.rm = TRUE)) |> 
-  ungroup() |> 
-  distinct() |> 
-  pivot_longer(c(scope_1, scope_2, scope_3), names_to= "scope", names_prefix = "scope_",values_to= "value") |> 
-  # mutate(scope = case_when(scope == 1 ~ "scope 1",
-  #                          scope == 2 ~ "scope 2",
-  #                          scope == 3 ~ "embodied emissions",
-  #                          TRUE ~ scope))
-  mutate(scope = scope |> factor(
-    levels=c(1,2, 3),
-    labels=c("scope 1", "scope 2",  "embodied emissions")
-    )) 
-
-
-
-# Plot
- scopes_over_time<- ggplot() +
-   # Darker grey outline and transparent bars for 2021
-   geom_bar(data = scopes %>% filter(time_period == 2021), 
-            aes(x = scope, y = value/1000), 
-            stat = "identity", color = "darkgrey", fill = "transparent") +
-   # Add rotated squares for 2010
-   geom_point(data = scopes %>% filter(time_period == "2010"), 
-              aes(x = scope, y = value/1000), 
-              shape = 16, color = "red", size = 2) +
-   # Dummy points to create the custom legend
-   geom_point(aes(x = Inf, y = Inf, shape = "2010", color = "2010"), size = 2) +
-   geom_point(aes(x = Inf, y = Inf, shape = "2021", color = "2021"), size = 3) +
-   # Custom legend entries
-   scale_shape_manual(name = "year", values = c("2010" = 16, "2021" = 22)) +
-   scale_color_manual(name = "year", values = c("2010" = "red", "2021" = "darkgrey")) +
-   # Labels and theme
-   labs(
-     x = "",
-     y = "CO2e in mt") +
-   theme_tufte() +
-   theme(
-         legend.position = "right")  # Place legend on the right
+# scopes <- df |> 
+#   select(time_period, industry, country, direct_emissions, scope_2, matches("embodied_emissions")) |>
+#   rename(scope_1 = direct_emissions ) |> 
+#   mutate(embodied_emissions = rowSums(df |> select(starts_with("embodied_emissions")), na.rm = TRUE)) |> 
+#   group_by(time_period) |> 
+#     mutate(scope_3  = sum(embodied_emissions, na.rm = TRUE)) |> 
+#   ungroup() |> 
+#   filter(grepl("(26|61|62|63)", industry)) |> 
+#   select(time_period,  matches("scope")) |> 
+#    group_by(time_period) |> 
+#     mutate(scope_1  = sum(scope_1, na.rm = TRUE)) |> 
+#     mutate(scope_2  = sum(scope_2, na.rm = TRUE)) |> 
+#   ungroup() |> 
+#   distinct() |> 
+#   pivot_longer(c(scope_1, scope_2, scope_3), names_to= "scope", names_prefix = "scope_",values_to= "value") |> 
+#   # mutate(scope = case_when(scope == 1 ~ "scope 1",
+#   #                          scope == 2 ~ "scope 2",
+#   #                          scope == 3 ~ "embodied emissions",
+#   #                          TRUE ~ scope))
+#   mutate(scope = scope |> factor(
+#     levels=c(1,2, 3),
+#     labels=c("scope 1", "scope 2",  "embodied emissions")
+#     )) 
+# 
+# 
+# 
+# # Plot
+#  scopes_over_time<- ggplot() +
+#    # Darker grey outline and transparent bars for 2021
+#    geom_bar(data = scopes %>% filter(time_period == 2021), 
+#             aes(x = scope, y = value/1000), 
+#             stat = "identity", color = "darkgrey", fill = "transparent") +
+#    # Add rotated squares for 2010
+#    geom_point(data = scopes %>% filter(time_period == "2010"), 
+#               aes(x = scope, y = value/1000), 
+#               shape = 16, color = "red", size = 2) +
+#    # Dummy points to create the custom legend
+#    geom_point(aes(x = Inf, y = Inf, shape = "2010", color = "2010"), size = 2) +
+#    geom_point(aes(x = Inf, y = Inf, shape = "2021", color = "2021"), size = 3) +
+#    # Custom legend entries
+#    scale_shape_manual(name = "year", values = c("2010" = 16, "2021" = 22)) +
+#    scale_color_manual(name = "year", values = c("2010" = "red", "2021" = "darkgrey")) +
+#    # Labels and theme
+#    labs(
+#      x = "",
+#      y = "CO2e in mt") +
+#    theme_tufte() +
+#    theme(
+#          legend.position = "right")  # Place legend on the right
+#  
+#  scopes_over_time
+#  
+#  
+#  ggsave("./results/figures/scopes_over_time.pdf", 
+#         plot = scopes_over_time, width = 8, height = 6, dpi = 300)
  
- scopes_over_time
- 
- 
- ggsave("./results/figures/scopes_over_time.pdf", 
-        plot = scopes_over_time, width = 8, height = 6, dpi = 300)
- 
- 
-
- 
- 
- scopes_industry <- df |> 
+scopes_industry <- df |> 
    select(time_period, industry, country, direct_emissions, scope_2, production_footprint) |>
    rename(scope_1 = direct_emissions ) |> 
    rename(scope_3 = production_footprint) |> 
@@ -245,54 +229,70 @@ scopes <- df |>
      TRUE ~ industry)) |>
    distinct() |> 
    pivot_longer(c(scope_1, scope_2, scope_3), names_to= "scope", names_prefix = "scope_",values_to= "value") |> 
-   # mutate(scope = case_when(scope == 1 ~ "scope 1",
-   #                          scope == 2 ~ "scope 2",
-   #                          scope == 3 ~ "embodied emissions",
-   #                          TRUE ~ scope))
    mutate(scope = scope |> factor(
      levels=c(1,2, 3),
-     labels=c("scope 1", "scope 2",  "embodied emissions")
+     labels=c("Scope 1", "Scope 2",  "embodied emissions")
    )) |> 
    mutate(industry = factor(industry, levels = industry_order)) 
+
+scopes_by_industry <- ggplot() +
+  # Darker grey outline and transparent bars for 2021
+  geom_bar(data = scopes_industry %>% filter(time_period == 2021), 
+           aes(x = scope, y = value / 1000, color = "2021", fill = industry), 
+           stat = "identity", alpha = 0.5) +
+  # Add points for 2010
+  geom_point(data = scopes_industry %>% filter(time_period == "2010"), 
+             aes(x = scope, y = value / 1000, color = "2010", shape = "2010"), 
+             size = 4) +
+  # Define shape and color scales for legend
+  scale_color_manual(name = "year", values = c("2010" = "red", "2021" = "darkgrey")) +
+  scale_fill_manual(
+    name = "industry",
+    values = c(
+      "hardware" = "#68011f",
+      "communications" = "#f2a27d",
+      "IT services" = "#2367ae"
+    )
+  ) +
+  # Facet by industry
+  facet_wrap(~industry) +
+  # Labels and theme
+  labs(
+    x = "",
+    y = "CO2e in mt (in log-scales)"
+  ) +
+  theme_tufte() +
+  theme(
+    legend.position = "right"
+  ) +
+  guides(shape = "none", fill ="none") +
+  scale_y_log10() +
+  theme(legend.position = "bottom",
+        text = element_text(size = 20),  # Set overall text size
+        axis.title = element_text(size = 20),  # Set axis title size
+        axis.text = element_text(size = 20),  # Set axis title size
+        legend.text = element_text(size = 20),  # Set legend text size
+        legend.title = element_text(size = 20),  # Set legend title size
+        strip.text = element_text(size = 20)    # Set facet strip text size
+        # Increase facet strip text size if you use facets
+  ) 
+scopes_by_industry 
  
- 
- 
- 
- scopes_by_industry <- ggplot() +
-   # Darker grey outline and transparent bars for 2021
-   geom_bar(data = scopes_industry %>% filter(time_period == 2021), 
-            aes(x = scope, y = value / 1000, color = "2021"), 
-            stat = "identity", fill = NA) +
-   # Add points for 2010
-   geom_point(data = scopes_industry %>% filter(time_period == "2010"), 
-              aes(x = scope, y = value / 1000, color = "2010", shape = "2010"), 
-              size = 2) +
-   # Define shape and color scales for legend
-  # scale_shape_manual(name = "year", values = c("2010" = 16, "2021" = 22)) +
-   scale_color_manual(name = "year", values = c("2010" = "red", "2021" = "darkgrey")) +
-   # Facet by industry
-   facet_wrap(~industry) +
-   # Labels and theme
-   labs(
-     x = "",
-     y = "CO2e in mt"
-   ) +
-   theme_tufte() +
-   theme(
-     legend.position = "right"
-   ) +
-   guides(shape = "none")# +
-  # scale_y_log10()
- 
- scopes_by_industry
- 
- 
- 
- ggsave("./results/figures/scopes_by_industry.pdf", 
+
+
+
+
+ggsave("./results/figures/scopes_by_industry.pdf", 
        # "./results/figures/scopes_by_industry_log.pdf",
         plot = scopes_by_industry, width = 18, height = 6, dpi = 300)
  
  
+scopes_industry |> 
+  filter(time_period ==2010 |time_period ==2021) |>  
+  pivot_wider(names_from= "time_period", values_from = "value") |>
+  mutate("change  2010 and 2021 in %" = (`2021`- `2010`)/`2010` * 100) |> 
+  xtable()
+
  
 
 #scopes |>
@@ -369,7 +369,7 @@ figure_df <- df |>
   ungroup()
 
 facet_labels <- c("embodied_emissions" = "a) embodied emissions", 
-                  "CO2e_intensity" = "b) ghg emission intensity",  
+                  "CO2e_intensity" = "b) emission intensity",  
                   "weight" = "c) sum of Leontief weights", 
                   "Y" = "d) final demand")
 
@@ -385,15 +385,15 @@ decomposition_changes <- figure_df |>
   theme_tufte() +
   theme(
     legend.position = "bottom",
-    text = element_text(size = 12),  # Set overall text to serif and size 12
-    axis.title = element_text(size = 12),  # Set axis titles to size 12
-    legend.text = element_text(size = 12),  # Set legend text to size 12
-    legend.title = element_text(size = 12),  # Set legend title to size 12
-    strip.text = element_text(size = 12))+    # Set facet strip text to size 1) + 
+    text = element_text(size = 14),  # Set overall text to serif and size 12
+    axis.title = element_text(size = 14),  # Set axis titles to size 12
+    legend.text = element_text(size = 14),  # Set legend text to size 12
+    legend.title = element_text(size = 14),  # Set legend title to size 12
+    strip.text = element_text(size = 14))+    # Set facet strip text to size 1) + 
   scale_color_manual(values = c(
-    "hardware" = "#56B4E9", 
-    "communications" = "#009E73", 
-    "IT services" = "#F0E442")) +
+    "hardware" = "#68011f",
+    "communications" = "#f2a27d",
+    "IT services" = "#2367ae" )) +
   labs(x = "year", y = "change in % (basline 2010)", color = "ICT industry:")
 # scale_y_continuous(limits= c(-50, -250))
 

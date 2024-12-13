@@ -16,6 +16,15 @@ library(hrbrthemes)
 #library(htmlwidgets)
 library(scales)
 
+
+setwd("C:/Users/JAX/Desktop/sektor_analyse")
+
+
+options(scipen = 100, digits = 4)
+
+emissions <- read_rds("data/Leontief_weights_ghgs_all_23_data.rds") |> 
+  separate_wider_regex(industry_ref_area, c(industry = ".*", "_", country = ".*")) 
+
 # embodied emissions 
 embodied_all <- emissions |> 
   mutate(embodied = rowSums(emissions |> select(direct_emissions), na.rm = TRUE)) |>
@@ -177,7 +186,7 @@ decomposition <- decomposition |>
 
 
 facet_labels <- c("embodied" = "a) embodied emissions", 
-                  "emission_intensity" = "b) GHG emission intensity",  
+                  "emission_intensity" = "b) emission intensity",  
                   "mean_wght" = "c) sum of Leontief weights", 
                   "Y" = "d) final demand")
 
@@ -196,18 +205,12 @@ decomposition_final <- decomposition |>
 
 
 decomposition_changes <- decomposition_final |>
-  ggplot(aes(x = as.integer(time_period), y = value, color = ICT, linetype = ICT)) +
+  ggplot(aes(x = as.integer(time_period), y = value *100, color = ICT, linetype = ICT)) +
   geom_line(linewidth =0.65) +
-  facet_wrap(~decomposition, labeller = as_labeller(facet_labels), ncol = 2) +
-  theme_tufte() +
-  theme(
-    legend.position = "bottom",
-    text = element_text(family = "serif", size = 12),  # Set overall text to serif and size 12
-    axis.title = element_text(size = 12),  # Set axis titles to size 12
-    legend.text = element_text(size = 10),  # Set legend text to size 12
-    legend.title=element_blank(),  # Set legend title to size 12
-    strip.text = element_text(size = 12)  # Set facet strip text to size 12
-  ) +    
+  facet_wrap(~decomposition, 
+             labeller = as_labeller(facet_labels),
+             ncol = 2,
+             axes = "all_y") +
   scale_linetype_manual(values = c(
     "mediated via other industries"  = "solid",
     "hardware" = "solid",
@@ -217,12 +220,23 @@ decomposition_changes <- decomposition_final |>
   )) +
   scale_color_manual(values = c(
     "mediated via other industries" = "darkgrey",
-    "hardware" = "#56B4E9",
-    "communications" = "#009E73",
-    "IT services" = "#F0E442",
-    "total economy" = "brown"  # Assign color for "total economy's emissions" if needed
+    "hardware" = "#68011f",
+    "communications" = "#f2a27d",
+    "IT services" = "#2367ae",
+    "total economy" = "black"  # Assign color for "total economy's emissions" if needed
   )) +
-  labs(x = "year", y = "change in % (baseline 2010)")
+  ggtitle("change in % (baseline 2010)") +
+  labs(x = "year", y = "") +
+  theme_tufte() +
+  theme(
+    legend.position = "bottom",
+    plot.title = element_text(hjust = 0.5, family = "serif", size = 14),
+    text = element_text(family = "serif", size = 14),  # Set overall text to serif and size 12
+    axis.title = element_text(size = 14),  # Set axis titles to size 12
+    legend.text = element_text(size = 12),  # Set legend text to size 12
+    legend.title=element_blank(),  # Set legend title to size 12
+    strip.text = element_text(size = 14)  # Set facet strip text to size 12
+  )  
 
 decomposition_changes 
 
