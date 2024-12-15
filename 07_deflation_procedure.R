@@ -1,5 +1,9 @@
 x = c('dplyr','tidyr','tibble','curl','stringr','ggplot2','eurostat','xml2','rvest','data.table','arrow','countrycode')
 
+install.packages(x[!x %in% installed.packages()])
+
+source("./code/utils_sda.R")
+
 lapply(x,library,character.only = T)
 
 get_value_added_price_index = function(base,time_serie = 2010:2021,verbose = T,update = F)
@@ -345,10 +349,11 @@ extract_constant_table = function(constant_tables,
   return(output)
 }
 
-# test1 = get_value_added_price_index(2020) #WORKS
+ #test1 = get_value_added_price_index(2010) #WORKS
 # test2 = get_value_added_price_index(2015) #WORKS
 #
-# test3 = get_constant_figaro_tables(2010:2012) #WORKS
+ test3 = get_constant_figaro_tables(years = 2010:2021,
+                                    folder = "./data/values/values_agg_23.rds") #WORKS
 # test4 = fetch_format_data(year = 2021,
 #                           folder = "C:/Users/Joris/OneDrive - La Société Nouvelle/Documents/Travaux statistiques/Travaux appliqués/F Charpentier - ICT4S/Embodied footprint",
 #                           ghg = F) #WORKS

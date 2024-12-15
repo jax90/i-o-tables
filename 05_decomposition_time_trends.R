@@ -242,6 +242,6 @@ decomposition_changes
 
 
 
-ggsave("./results/figures/decomposition_changes.pdf", 
+ggsave("./results/figures/decomposition_changes_deflat.pdf", 
        plot = decomposition_changes, width = 8, height = 6, dpi = 300)
 

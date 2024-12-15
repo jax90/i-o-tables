@@ -317,89 +317,89 @@ scopes_industry |>
 #method: 
 
 # improve sankey diagram by "digital components of other industries" (middle) and where the final demand stems from final consumption (private, government, investments), to which industry components go to (industry, services, etc.),  
-
-industry_order <- c( "hardware",  "communications", "IT services")
-
-prep_df <- emissions |> 
-  select(industry, country,time_period, emissions_per_output, matches( "(26|61|62|63)")) |> 
-  pivot_longer(
-    cols=matches("\\d+_"), names_to="industry_country",
-    values_to="leon_wght"
-  ) |> 
-  rename(ref_country = country)|> 
-  separate_wider_regex(
-    industry_country, c(ICT = ".*", "_", country = ".*"))|> 
-  inner_join(emissions |> 
-               filter(grepl("(26|61|62|63)", industry)) |>
-               rename(ICT = industry) |> 
-               select(ICT, country, Y_total, embodied_emissions, time_period) ,
-             by =  c("ICT", "country", "time_period")) |> 
-  rename(ICT_country = country) |> 
-  mutate(ICT = case_when(
-    ICT == "C26" ~ "hardware",
-    ICT == "J61" ~ "communications",
-    ICT == "J62_63" ~ "IT services",
-    TRUE ~ ICT
-  )) |> 
-  mutate(demand_weight = leon_wght*Y_total) 
-
-
-df <-prep_df|> 
-  group_by(time_period, ICT, ICT_country) |>
-  mutate(county_weight = sum(leon_wght,na.rm = TRUE)) |>
-  ungroup() |> 
-  group_by(time_period, ICT) |> 
-  summarise(
-    weight = weighted.mean(x=county_weight, w=Y_total), 
-    embodied_emissions = weighted.mean(x=embodied_emissions), 
-    Y = sum(Y_total),
-    CO2e_intensity = weighted.mean(x=emissions_per_output, w=demand_weight, na.rm = TRUE), 
-  ) |> 
-  ungroup()
-
-figure_df <- df |> 
-  pivot_longer(
-    cols=c("embodied_emissions", "weight", "Y", "CO2e_intensity"), names_to="decomposition",
-    values_to="value"
-  ) |> 
-  mutate(ICT = factor(ICT, levels = industry_order)) |> 
-  group_by(ICT, decomposition) |> 
-  mutate(baseline_2010 = value[time_period == "2010"],  # Get baseline value for 2010
-         value_normalized = (value / baseline_2010 -1) * 100) |>  # Normalize values to 2010 baseline
-  ungroup()
-
-facet_labels <- c("embodied_emissions" = "a) embodied emissions", 
-                  "CO2e_intensity" = "b) emission intensity",  
-                  "weight" = "c) sum of Leontief weights", 
-                  "Y" = "d) final demand")
-
-
-decomposition_order <- c( "embodied_emissions",  "CO2e_intensity","weight", "Y")
-
-
-decomposition_changes <- figure_df |>
-  mutate(decomposition = factor(decomposition, levels = decomposition_order)) |> 
-  ggplot(aes(x = as.integer(time_period), y = value_normalized, color = ICT)) +
-  geom_line() +
-  facet_wrap(~decomposition, labeller = as_labeller(facet_labels), ncol = 2) +
-  theme_tufte() +
-  theme(
-    legend.position = "bottom",
-    text = element_text(size = 14),  # Set overall text to serif and size 12
-    axis.title = element_text(size = 14),  # Set axis titles to size 12
-    legend.text = element_text(size = 14),  # Set legend text to size 12
-    legend.title = element_text(size = 14),  # Set legend title to size 12
-    strip.text = element_text(size = 14))+    # Set facet strip text to size 1) + 
-  scale_color_manual(values = c(
-    "hardware" = "#68011f",
-    "communications" = "#f2a27d",
-    "IT services" = "#2367ae" )) +
-  labs(x = "year", y = "change in % (basline 2010)", color = "ICT industry:")
-# scale_y_continuous(limits= c(-50, -250))
-
-ggsave("./results/figures/decomposition_changes.pdf", 
-       plot = decomposition_changes, width = 8, height = 6, dpi = 300)
-
+# 
+# industry_order <- c( "hardware",  "communications", "IT services")
+# 
+# prep_df <- emissions |> 
+#   select(industry, country,time_period, emissions_per_output, matches( "(26|61|62|63)")) |> 
+#   pivot_longer(
+#     cols=matches("\\d+_"), names_to="industry_country",
+#     values_to="leon_wght"
+#   ) |> 
+#   rename(ref_country = country)|> 
+#   separate_wider_regex(
+#     industry_country, c(ICT = ".*", "_", country = ".*"))|> 
+#   inner_join(emissions |> 
+#                filter(grepl("(26|61|62|63)", industry)) |>
+#                rename(ICT = industry) |> 
+#                select(ICT, country, Y_total, embodied_emissions, time_period) ,
+#              by =  c("ICT", "country", "time_period")) |> 
+#   rename(ICT_country = country) |> 
+#   mutate(ICT = case_when(
+#     ICT == "C26" ~ "hardware",
+#     ICT == "J61" ~ "communications",
+#     ICT == "J62_63" ~ "IT services",
+#     TRUE ~ ICT
+#   )) |> 
+#   mutate(demand_weight = leon_wght*Y_total) 
+# 
+# 
+# df <-prep_df|> 
+#   group_by(time_period, ICT, ICT_country) |>
+#   mutate(county_weight = sum(leon_wght,na.rm = TRUE)) |>
+#   ungroup() |> 
+#   group_by(time_period, ICT) |> 
+#   summarise(
+#     weight = weighted.mean(x=county_weight, w=Y_total), 
+#     embodied_emissions = weighted.mean(x=embodied_emissions), 
+#     Y = sum(Y_total),
+#     CO2e_intensity = weighted.mean(x=emissions_per_output, w=demand_weight, na.rm = TRUE), 
+#   ) |> 
+#   ungroup()
+# 
+# figure_df <- df |> 
+#   pivot_longer(
+#     cols=c("embodied_emissions", "weight", "Y", "CO2e_intensity"), names_to="decomposition",
+#     values_to="value"
+#   ) |> 
+#   mutate(ICT = factor(ICT, levels = industry_order)) |> 
+#   group_by(ICT, decomposition) |> 
+#   mutate(baseline_2010 = value[time_period == "2010"],  # Get baseline value for 2010
+#          value_normalized = (value / baseline_2010 -1) * 100) |>  # Normalize values to 2010 baseline
+#   ungroup()
+# 
+# facet_labels <- c("embodied_emissions" = "a) embodied emissions", 
+#                   "CO2e_intensity" = "b) emission intensity",  
+#                   "weight" = "c) sum of Leontief weights", 
+#                   "Y" = "d) final demand")
+# 
+# 
+# decomposition_order <- c( "embodied_emissions",  "CO2e_intensity","weight", "Y")
+# 
+# 
+# decomposition_changes <- figure_df |>
+#   mutate(decomposition = factor(decomposition, levels = decomposition_order)) |> 
+#   ggplot(aes(x = as.integer(time_period), y = value_normalized, color = ICT)) +
+#   geom_line() +
+#   facet_wrap(~decomposition, labeller = as_labeller(facet_labels), ncol = 2) +
+#   theme_tufte() +
+#   theme(
+#     legend.position = "bottom",
+#     text = element_text(size = 14),  # Set overall text to serif and size 12
+#     axis.title = element_text(size = 14),  # Set axis titles to size 12
+#     legend.text = element_text(size = 14),  # Set legend text to size 12
+#     legend.title = element_text(size = 14),  # Set legend title to size 12
+#     strip.text = element_text(size = 14))+    # Set facet strip text to size 1) + 
+#   scale_color_manual(values = c(
+#     "hardware" = "#68011f",
+#     "communications" = "#f2a27d",
+#     "IT services" = "#2367ae" )) +
+#   labs(x = "year", y = "change in % (basline 2010)", color = "ICT industry:")
+# # scale_y_continuous(limits= c(-50, -250))
+# 
+# ggsave("./results/figures/decomposition_changes.pdf", 
+#        plot = decomposition_changes, width = 8, height = 6, dpi = 300)
+# 
 
 
 

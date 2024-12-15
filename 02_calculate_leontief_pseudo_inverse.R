@@ -5,14 +5,29 @@ library(corpcor)
 
 setwd("C:/Users/JAX/Desktop/sektor_analyse")
 
-value_added_agg <- read_rds("./data/values/values_agg_23.rds") #|> 
+source("./code/07_deflation_procedure.R")
+
+values_agg <- read_rds("./data/values/values_agg_23.rds") #|> 
  # filter(ref_area == "AR")
 
-generate_Leontief <- function(.value_added_agg, .time_period ){
+price_index = get_value_added_price_index(2020) |> 
+  rename(deflator = value, 
+         ref_area = country,
+         time_period = year) |> 
+  select(-base)
+
+values_agg <-values_agg |> full_join(price_index, by = c("ref_area" ,"industry" ,"time_period")) |> 
+  mutate(across(where(is.nummeric), \(.x){.x*deflator} )) |> 
+  select(-deflator)
+
+
+generate_Leontief <- function(.values_agg, .time_period ){
   
   #prepere for input-output representation
   input_output <-
-    .value_added_agg |>
+    .values_agg |>
+    # filter(ref_area == "AR",
+    #        counterpart_area == "AR") |> 
     filter(time_period == .time_period) |> 
     select(-time_period) |> 
     pivot_longer(
@@ -125,8 +140,8 @@ generate_Leontief <- function(.value_added_agg, .time_period ){
 
 # # calculate leontief weights for several years
 Leontief_frame <-
-  unique(value_added_agg$time_period) |>
-  map(\(.period){generate_Leontief(value_added_agg, .period)}) |>
+  unique(values_agg$time_period) |>
+  map(\(.period){generate_Leontief(values_agg, .period)}) |>
   bind_rows() |>
   as_tibble()
 

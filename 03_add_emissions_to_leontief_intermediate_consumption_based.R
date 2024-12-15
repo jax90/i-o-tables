@@ -10,7 +10,10 @@ setwd("C:/Users/JAX/Desktop/sektor_analyse")
 # Read data files
 leontief_weights <- read_rds("./data/Leontief_weights_23_data.rds")
 emissions <- read_rds("./data/emissions/co2e_emission_agg.rds")
-value_added_agg <- read_rds("./data/values/values_agg.rds") 
+values_agg <- read_rds("./data/values/values_agg.rds") |> 
+  full_join(price_index, by = c("ref_area" ,"industry" ,"time_period")) |> 
+  mutate(across(where(is.numeric ), \(.x){if_else(!is.na(deflator),.x*deflator,.x)} )) |> 
+  select(-deflator)
 
 merge_prep <- emissions |> 
   unite(industry_ref_area, industry, ref_area, sep = "_") |> 
@@ -32,7 +35,7 @@ df <- merge_prep |>
 #generate a data frame that allows to consider embodied emissisions with respect
 # different kinds of demand
 
-y_country <- value_added_agg |> 
+y_country <- values_agg |> 
   select(
     starts_with("P3_S13"),  # Y
     starts_with("P3_S14"),  # Y
@@ -49,7 +52,7 @@ y_country <- value_added_agg |>
   unite(industry_ref_area, industry, ref_area, sep = "_") 
 
 
-add_embodied_emissions <- function(df, year , y_country, value_added_agg){ 
+add_embodied_emissions <- function(df, year , y_country, values_agg){ 
   
   # Print the current time period
   print(year)
@@ -131,12 +134,12 @@ add_embodied_emissions <- function(df, year , y_country, value_added_agg){
   
   
   # add scope 2 emissions
-  industry_names <- value_added_agg |> 
+  industry_names <- values_agg |> 
     select(-ref_area, -industry, -time_period, -counterpart_area  ) |> 
     colnames()
   
   # add Scope 2 emissions
-  scope2 <- value_added_agg |> 
+  scope2 <- values_agg |> 
     filter(time_period == year) |> 
     unite(industry_ref_area, industry, ref_area, sep = "_") |> 
     filter(grepl("D35", industry_ref_area)) |> 
@@ -183,7 +186,7 @@ add_embodied_emissions <- function(df, year , y_country, value_added_agg){
 
 # Apply the function to each unique time period and bind the results into a dataframe
 df_with_embodied_emissions <- unique(df$time_period) |> 
-  map(\(.period){add_embodied_emissions(df, .period,y_country, value_added_agg)}) |> 
+  map(\(.period){add_embodied_emissions(df, .period,y_country, values_agg)}) |> 
   bind_rows() |> 
   as_tibble()
 
