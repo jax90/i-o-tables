@@ -14,7 +14,7 @@ read_csv_with_time <- function(file_path) {
 }
 
 
-format_iot = function(folder,
+format_iot = function(folder, #matrix_eu-ic-io_ind-by-ind_23ed local path
                       exdir,
                       update = F,
                       verbose = T)
@@ -45,8 +45,10 @@ format_iot = function(folder,
 
   write_parquet(df, paste0(exdir,"/values_agg_23.parquet"))
 
+  return(df)
+
 }
 
-format_iot(folder = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
-           exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
-           update = T)
+# format_iot(folder = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
+#            exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
+#            update = T)

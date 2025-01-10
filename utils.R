@@ -94,6 +94,96 @@ io_aggregation_methods = function(d, #Final demand vector
               `Totals` = TOTAL_results))
 }
 
+currency_converter_oecd = function(value,iso3_origin,iso3_destination,year,col_value,col_year,new_col)
+{
+
+  oecd_exch = read.csv(paste0("https://sdmx.oecd.org/archive/rest/data/OECD,DF_DP_LIVE,/.EXCH...A?startPeriod=",year,
+                              "&endPeriod=",year,"&dimensionAtObservation=AllDimensions&format=csvfile"))
+
+  if(inherits(value,'data.frame'))
+  {
+
+    oecd_exch = read.csv(paste0("https://sdmx.oecd.org/archive/rest/data/OECD,DF_DP_LIVE,/.EXCH...A?dimensionAtObservation=AllDimensions&format=csvfile"))
+
+    cn = colnames(value)
+
+    value = value %>%
+      mutate(exch_origin = oecd_exch$OBS_VALUE[match(paste0(iso3_origin,unlist(.[,col_year])),paste0(oecd_exch$LOCATION,oecd_exch$TIME_PERIOD))],
+             exch_destination = oecd_exch$OBS_VALUE[match(paste0(iso3_destination,unlist(.[,col_year])),paste0(oecd_exch$LOCATION,oecd_exch$TIME_PERIOD))]) %>%
+      mutate("{new_col}" := case_when(!is.na(exch_origin) & !is.na(exch_destination) ~ unlist(.[,col_value]) / exch_origin * exch_destination,
+                                      T ~ NA)) %>%
+      select(all_of(cn))
+
+    return(value)
+  }
+
+  exch_origin = oecd_exch$OBS_VALUE[oecd_exch$LOCATION == iso3_origin]
+
+  exch_destination = oecd_exch$OBS_VALUE[oecd_exch$LOCATION == iso3_destination]
+
+  if(length(exch_origin) != 1 | length(exch_destination) != 1)
+  {
+    stop(paste0("OECD dataset for year ",year,", lengths = ",length(exch_origin), "(",iso3_origin,") & ",length(exch_origin),"(",iso3_destination,")"))
+  }
+
+  converted_value = value / exch_origin * exch_destination
+
+  return(converted_value)
+
+}
+
+
+sd_z_lenzen = function(ei)
+{
+  return(.393 * ei^(-.302))
+}
+
+sd_e_lenzen = function(ei)
+{
+  return(.486 * ei^(-.261))
+}
+
+perturb_e_lenzen = function(ei,n=1)
+{
+  v = rnorm(n)
+  return(10^(log10(ei)+v*log10((ei+sd_e_lenzen(ei))/ei)))
+}
+
+perturb_z_lenzen = function(zij,n=1)
+{
+  v = rnorm(n)
+  return(10^(log10(zij)+v*log10((zij+sd_z_lenzen(zij))/zij)))
+}
+
+sort_id = function(df,col_1dim = 'id',col_2dim)
+{
+
+  cn = colnames(df)
+
+  if(missing(col_2dim))
+  {
+
+    df =
+      df %>%
+      separate(!!col_1dim,c("country","industry"),remove = F,extra = 'merge') %>%
+      arrange(country,industry) %>%
+      select(all_of(cn))
+
+    return(df)
+
+  }
+
+  df =
+    df %>%
+    separate(!!col_1dim,c("country1","industry1"),remove = F,extra = 'merge') %>%
+    separate(!!col_2dim,c("country2","industry2"),remove = F,extra = 'merge') %>%
+    arrange(country1,industry1,country2,industry2) %>%
+    select(all_of(cn))
+
+  return(df)
+
+}
+
 #Import all economic data from FIGARO and the corresponding emissions vector from Eurostat 'env_ac_ghgfp' database (Eurostat estimates)
 
 fetch_format_data = function(year,folder = NULL,ghg = T)
@@ -321,51 +411,6 @@ sda_params = function(data,previous_year,current_year,selected_industry)
   params$previous_final_demand_current_ict[selected_industry] = params$current_final_demand[selected_industry]
 
   return(params)
-
-}
-
-compute_full_prod = function(params,selected_industry)
-{
-
-  selected_industry_num = which(colnames(params$previous_technology) %in% selected_industry)
-
-  list_prod = c()
-
-  for(i in c("previous_technology","previous_technology_current_ict","current_technology_previous_ict","current_technology"))
-  {
-    for(j in c("previous_final_demand","previous_final_demand_current_ict","current_final_demand_previous_ict","current_final_demand"))
-    {
-      add = data.frame(a = i,
-                       d = j) %>%
-        mutate(x = list(data.frame(x = params[[i]] %*% params[[j]]))) %>%
-        mutate(sub_x = list(x[[1]][selected_industry_num,"x",drop = F])) %>%
-        mutate(sub_invL = list(data.frame(solve(params[[i]][selected_industry_num,selected_industry_num])))) %>%
-        mutate(prescaling_sub_prod = list(data.frame(as.matrix(sub_invL[[1]]) %*% as.matrix(sub_x[[1]])))) %>%
-        mutate(full_prod = list(data.frame(params[[i]][,selected_industry_num] %*% as.matrix(prescaling_sub_prod[[1]])))) %>%
-        select(a,d,full_prod)
-
-      list_prod = list_prod %>% rbind(add)
-    }
-  }
-
-
-  return(list_prod)
-}
-
-compute_footprints = function(params,full_prods)
-{
-
-  selected_industry_num = which(colnames(params$previous_technology) %in% selected_industry)
-
-  list_footprint = c()
-
-  for(i in  c("previous_emissions_intensity","previous_emissions_intensity_current_ict","current_emissions_intensity_previous_ict","current_emissions_intensity"))
-  {
-    add = full_prods %>%
-      mutate(c = list(data.frame(params[[i]]))) %>%
-      mutate(fpt = t(as.matrix(c[[1]])) %*% as.matrix(full_prod[[1]]))
-  }
-
 
 }
 

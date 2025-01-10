@@ -1,36 +1,38 @@
 #Results paper:
 
-library(tidyverse)
-library(janitor)
-library(curl)
-library(matlib)
-library(corpcor)
-library(ggthemes)
-library(gganimate)
-library(shiny)
-library(viridis)
-library(patchwork)
-library(hrbrthemes)
-#library(circlize)
-#library(chorddiag)
-#library(webshot)
-#library(htmlwidgets)
-library(scales)
-library(xtable)
+# library(tidyverse)
+# library(janitor)
+# library(curl)
+# library(matlib)
+# library(corpcor)
+# library(ggthemes)
+# library(gganimate)
+# library(shiny)
+# library(viridis)
+# library(patchwork)
+# library(hrbrthemes)
+# #library(circlize)
+# #library(chorddiag)
+# #library(webshot)
+# #library(htmlwidgets)
+# library(scales)
+# library(xtable)
 
 
-setwd("C:/Users/JAX/Desktop/sektor_analyse")
 
+x = c('arrow','ggthemes','xtable')
+
+lapply(x,library,character.only=T)
 
 options(scipen = 100, digits = 4)
 
-emissions <- read_rds("C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23/Leontief_weights_ghgs_all_23_data.rds") |>
-  separate_wider_regex(industry_ref_area, c(industry = ".*", "_", country = ".*"))
+emissions <- read_parquet("C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23/footprint_results_23_data.parquet") |>
+  separate(resource_id,into = c('country',"industry"),extra = 'merge',sep = "_")
 
 df <- emissions |>
-  select(direct_emissions, matches("embodied_emissions"), industry, country, time_period, scope_2, production_footprint, X_total) |>
+  select(direct_emissions, matches("embodied_emissions"), industry, country, time_period, scope2, production_footprint, X_total = total_output) |>
   group_by(time_period) |>
-    mutate(absolute_emissions  = sum(direct_emissions)) |>
+  mutate(absolute_emissions  = sum(direct_emissions)) |>
   ungroup()
 
 
@@ -99,13 +101,12 @@ ggsave("./results/figures/emissions_over_time.pdf",
 
 fig_frame_industry <- df |>
   mutate(embodied_emissions = rowSums(df |> select(starts_with("embodied_emissions")), na.rm = TRUE)) |>
-  mutate(industry = ifelse(grepl("(26|61|62|63)", industry), industry, "mediated via other industries")) |>
   mutate(industry = case_when(
     industry == "C26" ~ "hardware",
     industry == "J61" ~ "communications",
     industry == "J62_63" ~ "IT services",
-    TRUE ~ industry)) |>
-  group_by(time_period, industry) |>
+    TRUE ~ "mediated via other industries")) |>
+   group_by(time_period, industry) |>
     summarise(embodied_emissions  = sum(embodied_emissions, na.rm = TRUE)) |>
   ungroup() |>
   drop_na()
@@ -211,17 +212,17 @@ fig_frame_industry |>
 #         plot = scopes_over_time, width = 8, height = 6, dpi = 300)
 
 scopes_industry <- df |>
-   select(time_period, industry, country, direct_emissions, scope_2, production_footprint) |>
+   select(time_period, industry, country, direct_emissions, scope2, production_footprint) |>
    rename(scope_1 = direct_emissions ) |>
    rename(scope_3 = production_footprint) |>
    filter(grepl("(26|61|62|63)", industry)) |>
    select(time_period, industry, matches("scope")) |>
    group_by(time_period, industry) |>
    mutate(scope_1  = sum(scope_1, na.rm = TRUE)) |>
-   mutate(scope_2  = sum(scope_2, na.rm = TRUE)) |>
+   mutate(scope_2  = sum(scope2, na.rm = TRUE)) |>
    mutate(scope_3  = sum(scope_3, na.rm = TRUE)) |>
    ungroup() |>
-  # mutate(scope_3  = scope_3 - scope_1 - scope_2) |>
+   mutate(scope_3  = scope_3 - scope_1 - scope_2) |>
    mutate(industry = case_when(
      industry == "C26" ~ "hardware",
      industry == "J61" ~ "communications",
@@ -323,7 +324,7 @@ scopes_industry |>
 # prep_df <- emissions |>
 #   select(industry, country,time_period, emissions_per_output, matches( "(26|61|62|63)")) |>
 #   pivot_longer(
-#     cols=matches("\\d+_"), names_to="industry_country",
+#     cols=matches("//d+_"), names_to="industry_country",
 #     values_to="leon_wght"
 #   ) |>
 #   rename(ref_country = country)|>
@@ -490,5 +491,5 @@ scopes_industry |>
 # improve decomposition figure by digital components.
 
 # share of Chinese exports over time.
-
+read.csv("C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23/MC Analysis/Wilting/mc_resultsinteractions.csv",sep = ";")
 
