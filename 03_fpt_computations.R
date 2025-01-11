@@ -147,13 +147,14 @@ eeio_computations = function(input_output,
 }
 
 
-previous_results = readRDS("C:/Users/joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23/Leontief_weights_ghgs_all_23_data.rds")
-previous_results %>%
-  filter(time_period == 2021) %>%
-  select(production_footprint,industry_ref_area) %>%
-  mutate(industry = substr(industry_ref_area,1,3)) %>%
-  filter(grepl('26|61|62|63',industry)) %>%
-  summarise(value = sum(production_footprint))
+# previous_results = readRDS("C:/Users/joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23/Leontief_weights_ghgs_all_23_data.rds")
+# previous_results %>%
+#   filter(time_period == 2021) %>%
+#   select(production_footprint,industry_ref_area) %>%
+#   mutate(industry = substr(industry_ref_area,1,3)) %>%
+#   filter(grepl('26|61|62|63',industry)) %>%
+#   summarise(value = sum(production_footprint))
+
 eeio_analysis = function(values_agg,
                          emissions,
                          file_name,
@@ -228,12 +229,12 @@ eeio_analysis = function(values_agg,
   return(sto_results)
 }
 
-eeio_analysis(values_agg = values_agg,
-              emissions = emissions,
-              basis = 2021,
-              file_name = "footprint_results_23_data.parquet",
-              exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
-              update = T)
+# eeio_analysis(values_agg = values_agg,
+#               emissions = emissions,
+#               basis = 2021,
+#               file_name = "footprint_results_23_data.parquet",
+#               exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
+#               update = T)
 
 
 
