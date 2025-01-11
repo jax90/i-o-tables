@@ -77,14 +77,22 @@ eeio_computations = function(input_output,
 
   if(verbose) print(paste0("Computing FD footprints..."))
 
-  distributed_fd_fpt = (diag(x = unlist(B)) %*% Int %*% Ds) %>%
+  marginal_carbon_per_demand = t(B) %*% Int
+
+  distributed_fd_fpt = list()
+
+  for(i in 1:ncol(Ds))
+  {
+
+  embedded_emissions_di = t(sweep(marginal_carbon_per_demand,2,Ds[,i],`*`)) %>%
     as.data.frame() %>%
-    `rownames<-`(rownames(L)) %>%
-    `colnames<-`(paste0("embodied_emissions_",colnames(.))) %>%
+    `colnames<-`(paste0("embodied_emissions_",colnames(Ds)[i]))
+
+  distributed_fd_fpt[[i]] = embedded_emissions_di
+
+  }
+  distributed_fd_fpt = as.data.frame(distributed_fd_fpt) %>%
     rownames_to_column('resource_id')
-
-
-  total_embedded =  sweep(sweep(sweep(L,2,diag(L),`/`),1,unlist(B),`*`),2,X,`*`)
 
   #Decompose ICT sector scope 2 and 3 simply by aggregating non exogenous measure would overcount fpt by 0.3 GT in 2021
   #It is required to decompose the analysis within a system where ICT sectors are exogenous, by taking advantage of the production method (2)
@@ -105,10 +113,16 @@ eeio_computations = function(input_output,
 
   scope2 = colSums(indirect_fpt[grep('D35',colnames(x=L_adjust)),],na.rm = T)
   scope3 = colSums(indirect_fpt[-grep('D35',colnames(x=L_adjust)),],na.rm = T)
-  scope1 = emissions$direct_emissions[selected_industry_num]
 
+  production_fpt_elements = data.frame(
+    resource_id = rownames(L_adjust)[selected_industry_num],
+    scope_2 = scope2,
+    scope_3 = scope3,
+    production_footprint = total_fpt
+  )
+
+  # scope1 = emissions$direct_emissions[selected_industry_num]
   # print(cbind(scope1+scope2+scope3,total_fpt)) #IT WORKS
-
 
   results_table = L %>%
     as.data.frame() %>%
@@ -124,9 +138,8 @@ eeio_computations = function(input_output,
     left_join(distributed_fd_fpt,by = 'resource_id') %>%
     mutate(total_final_demand = D,
            total_output = X,
-           direct_emissions = emissions$direct_emissions[match(resource_id,emissions$resource_id)],
-           scope2 = scope2,
-           production_footprint = colSums(total_embedded,na.rm = T))
+           direct_emissions = emissions$direct_emissions[match(resource_id,emissions$resource_id)]) %>%
+    left_join(production_fpt_elements,by = 'resource_id')
 
 
   return(results_table)
@@ -134,6 +147,13 @@ eeio_computations = function(input_output,
 }
 
 
+previous_results = readRDS("C:/Users/joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23/Leontief_weights_ghgs_all_23_data.rds")
+previous_results %>%
+  filter(time_period == 2021) %>%
+  select(production_footprint,industry_ref_area) %>%
+  mutate(industry = substr(industry_ref_area,1,3)) %>%
+  filter(grepl('26|61|62|63',industry)) %>%
+  summarise(value = sum(production_footprint))
 eeio_analysis = function(values_agg,
                          emissions,
                          file_name,
@@ -208,12 +228,12 @@ eeio_analysis = function(values_agg,
   return(sto_results)
 }
 
-# eeio_analysis(values_agg = values_agg,
-#               emissions = emissions,
-#               basis = 2021,
-#               file_name = "footprint_results_23_data.parquet",
-#               exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
-#               update = T)
+eeio_analysis(values_agg = values_agg,
+              emissions = emissions,
+              basis = 2021,
+              file_name = "footprint_results_23_data.parquet",
+              exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
+              update = T)
 
 
 

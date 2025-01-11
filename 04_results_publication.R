@@ -30,7 +30,7 @@ emissions <- read_parquet("C:/Users/Joris/OneDrive - La Société Nouvelle/Parta
   separate(resource_id,into = c('country',"industry"),extra = 'merge',sep = "_")
 
 df <- emissions |>
-  select(direct_emissions, matches("embodied_emissions"), industry, country, time_period, scope2, production_footprint, X_total = total_output) |>
+  select(direct_emissions, matches("embodied_emissions"), industry, country, time_period, scope_2, production_footprint, X_total = total_output) |>
   group_by(time_period) |>
   mutate(absolute_emissions  = sum(direct_emissions)) |>
   ungroup()
@@ -212,14 +212,14 @@ fig_frame_industry |>
 #         plot = scopes_over_time, width = 8, height = 6, dpi = 300)
 
 scopes_industry <- df |>
-   select(time_period, industry, country, direct_emissions, scope2, production_footprint) |>
+   select(time_period, industry, country, direct_emissions, scope_2, production_footprint) |>
    rename(scope_1 = direct_emissions ) |>
    rename(scope_3 = production_footprint) |>
    filter(grepl("(26|61|62|63)", industry)) |>
    select(time_period, industry, matches("scope")) |>
    group_by(time_period, industry) |>
    mutate(scope_1  = sum(scope_1, na.rm = TRUE)) |>
-   mutate(scope_2  = sum(scope2, na.rm = TRUE)) |>
+   mutate(scope_2  = sum(scope_2, na.rm = TRUE)) |>
    mutate(scope_3  = sum(scope_3, na.rm = TRUE)) |>
    ungroup() |>
    mutate(scope_3  = scope_3 - scope_1 - scope_2) |>
@@ -491,5 +491,4 @@ scopes_industry |>
 # improve decomposition figure by digital components.
 
 # share of Chinese exports over time.
-read.csv("C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23/MC Analysis/Wilting/mc_resultsinteractions.csv",sep = ";")
 
