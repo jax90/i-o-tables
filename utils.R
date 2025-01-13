@@ -133,12 +133,12 @@ currency_converter_oecd = function(value,iso3_origin,iso3_destination,year,col_v
 }
 
 
-sd_z_lenzen = function(ei)
+rsd_z_lenzen = function(ei)
 {
   return(.393 * ei^(-.302))
 }
 
-sd_e_lenzen = function(ei)
+rsd_e_lenzen = function(ei)
 {
   return(.486 * ei^(-.261))
 }
@@ -146,13 +146,13 @@ sd_e_lenzen = function(ei)
 perturb_e_lenzen = function(ei,n=1)
 {
   v = rnorm(n)
-  return(10^(log10(ei)+v*log10((ei+sd_e_lenzen(ei))/ei)))
+  return(10^(log10(ei)+v*log10(1+rsd_e_lenzen(ei))))
 }
 
 perturb_z_lenzen = function(zij,n=1)
 {
   v = rnorm(n)
-  return(10^(log10(zij)+v*log10((zij+sd_z_lenzen(zij))/zij)))
+  return(10^(log10(zij)+v*log10(1+rsd_z_lenzen(zij))))
 }
 
 sort_id = function(df,col_1dim = 'id',col_2dim)
