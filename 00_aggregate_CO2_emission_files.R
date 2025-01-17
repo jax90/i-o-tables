@@ -1,29 +1,33 @@
-library(tidyverse)
-library(readxl)
+x = c('tidyverse','data.table','arrow')
+#lapply(x, install.packages,character.only = T)
+lapply(x, library,character.only = T)
 
-setwd("C:/Users/JAX/Desktop/sektor_analyse")
+format_emissions = function(folder,
+                            exdir,
+                            update = F,
+                            verbose = T)
+  {
+  if(!update)
+  {
+    if(file.exists(paste0(exdir,"/co2e_emission_agg.parquet")))
+    {
+      if(verbose) print('Returning cached data')
+      return(read_parquet(paste0(exdir,"/co2e_emission_agg.parquet")))
+    }
+    if(verbose) print('File does not exists yet, updating...')
+  }
 
-# Pfad zum Ordner, in dem sich die Dateien befinden
-path <- "./data/emissions"
+  filenames <- list.files(folder, pattern = "ghgFootprint", full.names = TRUE)
 
-# Liste der Dateien im Ordner, die mit einer Zahl beginnen
-filenames <- list.files(path, pattern = "ghg", full.names = TRUE)
+  df <- filenames |>
+    map_dfr(fread)
 
-# Anzeigen der ausgewählten Dateien
-print(filenames)
+  write_parquet(df, paste0(exdir,"/co2e_emission_agg.parquet"))
 
-df <- read.csv(filenames[1]) |> 
-  as_tibble()
+  return(df)
 
-# Display the content of the first CSV file as a tibble
-print(df)
+}
 
-#upload dataframes and bind row-wise
-df <- filenames |> 
-  map_dfr(read_csv, show_col_types=FALSE)
-
-
-emissions2015 <- read_excel("./data/emissions/AggregationReport_23ed_GHGfp.xlsx", sheet = "Matrix")
-
-# Save as RData file
-write_rds(df, "data/emissions/co2e_emission_agg.rds", compress="gz")
+# format_emissions(folder = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
+#                  exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
+#                  update = T)
