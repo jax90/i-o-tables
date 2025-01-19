@@ -1,4 +1,9 @@
-source(here("03_fpt_computations.R"))
+x = c('here','ggthemes')
+
+lapply(x,library,character.only = T)
+
+lapply(lapply(c('utils.R',
+                '03_fpt_computations.R'),here),source)
 
 
 mc_sensitivity_analysis = function(values_agg,
@@ -192,8 +197,10 @@ mc_sensitivity_analysis = function(values_agg,
 
           for(j in 1:length(Zp))
           {
-            Zp[j] = perturb_z(Zp[j])
+            Zp[j] = perturb_z_lenzen(Zp[j])
           }
+
+          diag(Zp)[diag(Zp) == colSums(Zp,na.rm = T)] = 0
 
           Xp = matrix(rowSums(Zp,na.rm = T) + D,ncol = 1)
 
@@ -234,7 +241,7 @@ mc_sensitivity_analysis = function(values_agg,
 
         formatted_results = full_prodp %>%
           as.data.frame() %>%
-          `rownames<-`(colnames(A)) %>%
+          `rownames<-`(colnames(Ap)) %>%
           `colnames<-`("Total Requirements") %>%
           mutate(`Initial Production` = case_when(rownames(.) %in% selected_industry ~ sub_xp[match(rownames(.),rownames(sub_xp))],
                                                   T ~ 0),
@@ -367,22 +374,67 @@ mc_sensitivity_analysis = function(values_agg,
 
 }
 
-# mc_sensitivity_analysis(values_agg,
-#                         emissions,
-#                         time_period = 2021,
-#                         sim = 'interactions',
-#                         rule = 'Wilting',
-#                         n = 1000)
-#
-# mc_sensitivity_analysis(values_agg,
-#                         emissions,
-#                         time_period = 2021,
-#                         rule = 'Wood-Lenzen',
-#                         sim = 'interactions',
-#                         n = 1000)
+mc_sensitivity_analysis(values_agg,
+                        emissions,
+                        time_period = 2021,
+                        sim = 'interactions',
+                        rule = 'Wilting',
+                        n = 1000)
+
+mc_sensitivity_analysis(values_agg,
+                        emissions,
+                        time_period = 2021,
+                        rule = 'Wood-Lenzen',
+                        sim = 'interactions',
+                        n = 1000)
 #
 # mc_sensitivity_analysis(values_agg,
 #                         emissions,
 #                         time_period = 2021,
 #                         rule = 'price',
 #                         sim = 'interactions')
+
+###APPENDIX : FIGURES ON UNCERTAINTY
+
+original_fpt = 2140567
+
+dt = read.csv("C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23/MC Analysis/Wilting/mc_resultsinteractions.csv",sep = ";",header = T,row.names = NULL,check.names = F) %>%
+  filter(!is.na(`Distributed footprint`)) %>%
+  mutate(Simulation = 'Wilting (2012)') %>%
+  rbind(
+    read.csv("C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23/MC Analysis/Wood-Lenzen/mc_resultsinteractions.csv",sep = ";",header = T,row.names = NULL,check.names = F) %>%
+      filter(!is.na(`Distributed footprint`)) %>%
+      mutate(Simulation = 'Lenzen (2018)')
+  )
+
+
+options(scipen = 999)
+
+scale = 1000
+
+ggplot(dt %>% mutate(`Distributed footprint` = `Distributed footprint` / scale),
+       aes(x = `Distributed footprint`,colour = "black")) + geom_density(linewidth = .75,color = 'black') +
+  theme_tufte() +
+  geom_vline(aes(xintercept=quantile(`Distributed footprint`,probs = .05),
+             colour="Perc. 5 and 95"), linetype="dashed", linewidth=1) +
+  geom_vline(aes(xintercept=quantile(`Distributed footprint`,probs = .95),
+             colour="Perc. 5 and 95"), linetype="dashed", linewidth=1) +
+   geom_vline(aes(xintercept=quantile(`Distributed footprint`,probs = .5),
+              colour="Median"), linetype="dashed", linewidth=1) +
+  geom_vline(aes(xintercept=mean(`Distributed footprint`),
+             colour="Mean"), linetype="dashed", linewidth=1) +
+  geom_vline(aes(xintercept=original_fpt/scale,
+             colour="Actual"), linewidth=1) +
+
+  theme(axis.line.y=element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.title.y=element_blank(),
+        legend.title=element_blank(),
+        legend.position="bottom",
+        legend.box = "horizontal") +
+  scale_colour_manual(name = 'colour',
+                      values =c('Perc. 5 and 95'='red','Mean'='green','Median' = 'cyan','Actual' = 'black'))  +
+  xlim(c((2150000 - 100000) / scale, (2150000 + 100000) / scale))+
+  labs(x = 'World ICT production footprint (in MT CO2e)') +
+  facet_wrap(~Simulation)
