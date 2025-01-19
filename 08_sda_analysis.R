@@ -1,417 +1,128 @@
-x = c('dplyr','tidyr','tibble','curl','stringr','ggplot2','eurostat','xml2','rvest','data.table','arrow')
+x = c('dplyr','tidyr','tibble','curl','stringr','ggplot2','eurostat','xml2','rvest','data.table','arrow','ggthemes')
 
 lapply(x,library,character.only = T)
 
-#We aim to divide ICT production footprint into seven terms :
-# - Emission intensity contribution
-#     - ICT direct emission intensity contribution (additive) 1
-#     - ICT suppliers' direct emissions intensity contribution (additive) 2
-#
-# - Technology change contribution
-#     - ICT technology change production (non-additive) 3
-#     - ICT suppliers' technology change production (non-additive) 4
-#     - Technological interaction term 5
-#
-# - Final demand contribution
-#     - Final demand to the ICT sector contribution (additive) 6
-#     - Final demand to the rest of the economy contribution (additive) 7
+results = read_parquet("C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23/footprint_results_23_data.parquet")
 
-
-#Define the time period coverage
-year_list = 2010:2021
-
-#Collect data into list_data
-list_data = build_list_data(year_list)
-
-#Select all ICT industries across countries
-selected_industry = rownames(list_data[[1]][[1]]) %>% subset(grepl("C26|J61|J62_63",.))
-
-#Initialize SDA by computing the 2010 baseline
-
-current_technology = compute_a(
-  z = list_data$transaction_flows[["2010"]],
-  d = list_data$aggregated_demand[["2010"]])
-
-sda_init =
-  io_aggregation_methods(d = as.matrix(list_data$aggregated_demand[["2010"]]),
-                         c = as.matrix(list_data$direct_emissions[["2010"]]) / as.matrix(list_data$production[["2010"]]),
-                         a = current_technology,
-                         selected_industry = selected_industry)
-
-#Store the main results in sda_results
-
-sda_results = sda_init$Totals %>%
-  mutate(year = 2010,
-         case = 10,
-         `ICT Emissions intensity` = 2010,
-         `VC Emissions intensity` = 2010,
-         `ICT Technology change` = 2010,
-         `VC Technology change` = 2010,
-         `ICT Final demand` = 2010,
-         `VC Final demand` = 2010)
-
-#Perform SDA
-
-for(year in year_list[-1])
+sda_analysis = function(results,verbose = T)
 {
+  time_span = sort(unique(results$time_period))
 
-  current_year = year
+  sda_results = c()
 
-  previous_year = year - 1
+  for(year in as.numeric(time_span[-1]))
+  {
 
-  params = sda_params(list_data,previous_year = previous_year,current_year = current_year,selected_industry = selected_industry)
+    e0 = results %>%
+      filter(time_period == (year-1)) %>%
+      column_to_rownames('resource_id') %>%
+      select(production_footprint)
 
+    L0 = results %>%
+      filter(time_period == (year-1)) %>%
+      column_to_rownames('resource_id') %>%
+      select(matches("Intwght")) %>%
+      as.matrix()
 
-  #Case 1 : assess the ICT direct emissions intensity contribution
+    b0 = results %>%
+      filter(time_period == (year-1)) %>%
+      column_to_rownames('resource_id') %>%
+      select(direct_emissions,total_output) %>%
+      mutate(value = case_when(total_output == 0 ~ 0,
+                                T ~ direct_emissions / total_output)) %>%
+      select(value) %>%
+      as.matrix()
 
-  sda_case1 =
-    io_aggregation_methods(d = params$previous_final_demand,
-                           c = params$previous_emissions_intensity_current_ict,
-                           a = params$previous_technology,
-                           selected_industry = selected_industry)
+    D0 = results %>%
+      filter(time_period == (year-1)) %>%
+      column_to_rownames('resource_id') %>%
+      select(total_final_demand) %>%
+      as.matrix()
 
-  sda_results = sda_results %>%
-    rbind(sda_case1$Totals %>%
-            mutate(year = current_year,
-                   case = 1,
-                   `ICT Emissions intensity` = current_year,
-                   `VC Emissions intensity` = previous_year,
-                   `ICT Technology change` = previous_year,
-                   `VC Technology change` = previous_year,
-                   `ICT Final demand` = previous_year,
-                   `VC Final demand` = previous_year))
+    e1 = results %>%
+      filter(time_period == (year)) %>%
+      column_to_rownames('resource_id') %>%
+      select(production_footprint)
 
-  #Case 2 : assess ICT suppliers' direct emissions intensity contribution
+    L1 = results %>%
+      filter(time_period == (year)) %>%
+      column_to_rownames('resource_id') %>%
+      select(matches("Intwght"))  %>%
+      as.matrix()
 
-  sda_case2 =
-    io_aggregation_methods(d = params$previous_final_demand,
-                           c = params$current_emissions_intensity_previous_ict,
-                           a = params$previous_technology,
-                           selected_industry = selected_industry)
+    b1 = results %>%
+      filter(time_period == (year)) %>%
+      column_to_rownames('resource_id') %>%
+      select(direct_emissions,total_output) %>%
+      mutate(value = case_when(total_output == 0 ~ 0,
+                               T ~ direct_emissions / total_output)) %>%
+      select(value) %>%
+      as.matrix()
 
-  sda_results = sda_results %>%
-    rbind(sda_case2$Totals %>%
-            mutate(year = current_year,
-                   case = 2,
-                   `ICT Emissions intensity` = previous_year,
-                   `VC Emissions intensity` = current_year,
-                   `ICT Technology change` = previous_year,
-                   `VC Technology change` = previous_year,
-                   `ICT Final demand` = previous_year,
-                   `VC Final demand` = previous_year))
+    D1 = results %>%
+      filter(time_period == (year)) %>%
+      column_to_rownames('resource_id') %>%
+      select(total_final_demand) %>%
+      as.matrix()
 
+    #t(b0) %*% L0 %*% D0 #should equal sum(e0,na.rm = T)
 
+    #Non unique solution, we implement a polar decomposition method, see Dietzenbacher and Los (1998)
+    #Dietzenbacher, E., & Los, B. (1998). Structural decomposition techniques: sense and sensitivity. Economic Systems Research, 10(4), 307-324.
 
-  #Case 3 : assess direct production technology contribution
+    dif_B = (1/2) * t(b1 - b0) %*% L1 %*% D1 + (1/2) * t(b1 - b0) %*% L0 %*% D0
 
-  sda_case3 =
-    io_aggregation_methods(d = params$previous_final_demand,
-                           c = params$previous_emissions_intensity,
-                           a = params$previous_technology_current_ict,
-                           selected_industry = selected_industry)
+    dif_L = (1/2) * t(b0) %*% (L1 - L0) %*% D1 + (1/2) * t(b1) %*% (L1 - L0) %*% D0
 
-  sda_results = sda_results %>%
-    rbind(sda_case3$Totals %>%
-            mutate(year = current_year,
-                   case = 3,
-                   `ICT Emissions intensity` = previous_year,
-                   `VC Emissions intensity` = previous_year,
-                   `ICT Technology change` = current_year,
-                   `VC Technology change` = previous_year,
-                   `ICT Final demand` = previous_year,
-                   `VC Final demand` = previous_year))
+    dif_D = (1/2) * t(b0) %*% L0 %*% (D1 - D0) + (1/2) * t(b1) %*% L1 %*% (D1 - D0)
 
+    if((round(dif_B + dif_L + dif_D) != round(sum(e1,na.rm=T) - sum(e0,na.rm=T))) & verbose) print(paste0('Error detected :',year)) #IT WORKS
 
+    sda_year = data.frame(`Direct emission intensity` = as.numeric(dif_B),
+                          `Technology change` = as.numeric(dif_L),
+                          `Final demand` = as.numeric(dif_D),
+                          time_period = year,
+                          Start = NA,
+                          End = NA) %>%
+      pivot_longer(1:3,names_to = "Contributions",values_to = "Amount",names_repair = 'minimal')
 
-  #Case 4 : assess ICT suppliers' production technology contribution
+  sda_year$Start[1] = sum(e0,na.rm=T)
+  sda_year$End[1] = sda_year$Start[1] + sda_year$Amount[1]
 
-  sda_case4 =
-    io_aggregation_methods(d = params$previous_final_demand,
-                           c = params$previous_emissions_intensity,
-                           a = params$current_technology_previous_ict,
-                           selected_industry = selected_industry)
+  sda_year$Start[2] = sda_year$End[1]
+  sda_year$End[2] = sda_year$Start[2] + sda_year$Amount[2]
 
-  sda_results = sda_results %>%
-    rbind(sda_case4$Totals %>%
-            mutate(year = current_year,
-                   case = 4,
-                   `ICT Emissions intensity` = previous_year,
-                   `VC Emissions intensity` = previous_year,
-                   `ICT Technology change` = previous_year,
-                   `VC Technology change` = current_year,
-                   `ICT Final demand` = previous_year,
-                   `VC Final demand` = previous_year))
-
-  #Case 5 : assess ICT final demand contribution
-
-  sda_case5 =
-    io_aggregation_methods(d = params$previous_final_demand_current_ict,
-                           c = params$previous_emissions_intensity,
-                           a = params$previous_technology,
-                           selected_industry = selected_industry)
-
-  sda_results = sda_results %>%
-    rbind(sda_case5$Totals %>%
-            mutate(year = current_year,
-                   case = 5,
-                   `ICT Emissions intensity` = previous_year,
-                   `VC Emissions intensity` = previous_year,
-                   `ICT Technology change` = previous_year,
-                   `VC Technology change` = previous_year,
-                   `ICT Final demand` = current_year,
-                   `VC Final demand` = previous_year))
-
-  #Case 6 : assess ICT final demand contribution
-
-  sda_case6 =
-    io_aggregation_methods(d = params$current_final_demand_previous_ict,
-                           c = params$previous_emissions_intensity,
-                           a = params$previous_technology,
-                           selected_industry = selected_industry)
-
-  sda_results = sda_results %>%
-    rbind(sda_case6$Totals %>%
-            mutate(year = current_year,
-                   case = 6,
-                   `ICT Emissions intensity` = previous_year,
-                   `VC Emissions intensity` = previous_year,
-                   `ICT Technology change` = previous_year,
-                   `VC Technology change` = previous_year,
-                   `ICT Final demand` = previous_year,
-                   `VC Final demand` = current_year))
+  sda_year$Start[3] = sda_year$End[2]
+  sda_year$End[3] = sda_year$Start[3] + sda_year$Amount[3]
 
 
-  #Case 7 : assess emissions intensity contribution
+    sda_results = rbind(sda_results,
+                        sda_year)
 
-  sda_case7 =
-    io_aggregation_methods(d = params$previous_final_demand,
-                           c = params$current_emissions_intensity,
-                           a = params$previous_technology,
-                           selected_industry = selected_industry)
-
-  sda_results = sda_results %>%
-    rbind(sda_case7$Totals %>%
-            mutate(year = current_year,
-                   case = 7,
-                   `ICT Emissions intensity` = current_year,
-                   `VC Emissions intensity` = current_year,
-                   `ICT Technology change` = previous_year,
-                   `VC Technology change` = previous_year,
-                   `ICT Final demand` = previous_year,
-                   `VC Final demand` = previous_year))
-
-  #Case 8 : assess technology contribution
-
-  sda_case8 =
-    io_aggregation_methods(d = params$previous_final_demand,
-                           c = params$previous_emissions_intensity,
-                           a = params$current_technology,
-                           selected_industry = selected_industry)
-
-  sda_results = sda_results %>%
-    rbind(sda_case8$Totals %>%
-            mutate(year = current_year,
-                   case = 8,
-                   `ICT Emissions intensity` = previous_year,
-                   `VC Emissions intensity` = previous_year,
-                   `ICT Technology change` = current_year,
-                   `VC Technology change` = current_year,
-                   `ICT Final demand` = previous_year,
-                   `VC Final demand` = previous_year))
-
-  #Case 9 : assess final demand contribution
-
-  sda_case9 =
-    io_aggregation_methods(d = params$current_final_demand,
-                           c = params$previous_emissions_intensity,
-                           a = params$previous_technology,
-                           selected_industry = selected_industry)
-
-  sda_results = sda_results %>%
-    rbind(sda_case9$Totals %>%
-            mutate(year = current_year,
-                   case = 9,
-                   `ICT Emissions intensity` = previous_year,
-                   `VC Emissions intensity` = previous_year,
-                   `ICT Technology change` = previous_year,
-                   `VC Technology change` = previous_year,
-                   `ICT Final demand` = current_year,
-                   `VC Final demand` = current_year))
-
-  #Case 10 : Current year Production footprint
-
-  sda_case10 =
-    io_aggregation_methods(d = params$current_final_demand,
-                           c = params$current_emissions_intensity,
-                           a = params$current_technology,
-                           selected_industry = selected_industry)
-
-  sda_results = sda_results %>%
-    rbind(sda_case10$Totals %>%
-            mutate(year = current_year,
-                   case = 10,
-                   `ICT Emissions intensity` = current_year,
-                   `VC Emissions intensity` = current_year,
-                   `ICT Technology change` = current_year,
-                   `VC Technology change` = current_year,
-                   `ICT Final demand` = current_year,
-                   `VC Final demand` = current_year))
-
-  #Case 11 : Intensity and technology IT
-
-  sda_case11 =
-    io_aggregation_methods(d = params$previous_final_demand,
-                           c = params$current_emissions_intensity,
-                           a = params$current_technology,
-                           selected_industry = selected_industry)
-
-  sda_results = sda_results %>%
-    rbind(sda_case11$Totals %>%
-            mutate(year = current_year,
-                   case = 11,
-                   `ICT Emissions intensity` = current_year,
-                   `VC Emissions intensity` = current_year,
-                   `ICT Technology change` = current_year,
-                   `VC Technology change` = current_year,
-                   `ICT Final demand` = previous_year,
-                   `VC Final demand` = previous_year))
-
-  #Case 12 : Technology and FD IT
-
-  sda_case12 =
-    io_aggregation_methods(d = params$current_final_demand,
-                           c = params$previous_emissions_intensity,
-                           a = params$current_technology,
-                           selected_industry = selected_industry)
-
-  sda_results = sda_results %>%
-    rbind(sda_case12$Totals %>%
-            mutate(year = current_year,
-                   case = 12,
-                   `ICT Emissions intensity` = previous_year,
-                   `VC Emissions intensity` = previous_year,
-                   `ICT Technology change` = current_year,
-                   `VC Technology change` = current_year,
-                   `ICT Final demand` = current_year,
-                   `VC Final demand` = current_year))
-
-  #Case 13 : FD and intensity IT
-
-  sda_case13 =
-    io_aggregation_methods(d = params$current_final_demand,
-                           c = params$current_emissions_intensity,
-                           a = params$previous_technology,
-                           selected_industry = selected_industry)
-
-  sda_results = sda_results %>%
-    rbind(sda_case13$Totals %>%
-            mutate(year = current_year,
-                   case = 13,
-                   `ICT Emissions intensity` = current_year,
-                   `VC Emissions intensity` = current_year,
-                   `ICT Technology change` = previous_year,
-                   `VC Technology change` = previous_year,
-                   `ICT Final demand` = current_year,
-                   `VC Final demand` = current_year))
-
+    if(verbose) print(year)
 
   }
 
-write_parquet(sda_results,
-              paste0(dirname(rstudioapi::getActiveDocumentContext()$path),"/sda_results_raw.parquet"))
-
-sda_results = read_parquet(paste0(dirname(rstudioapi::getActiveDocumentContext()$path),"/sda_results_raw.parquet")) ; sda_results$case[1] = 10
-
-interaction_term =
-  sda_results %>% select(`Distributed footprint`,year,case) %>%
-  filter(case %in% c(3,4,8,10)) %>%
-  pivot_wider(names_from = 'case',values_from = `Distributed footprint`) %>%
-  mutate(Reference = lag(`10`),
-         `Additive technological change` = Reference * 2 - `3` - `4`,
-         `Global technological change` = Reference - `8`,
-         `Technological interaction term` = `Global technological change` - `Additive technological change`) %>%
-  select(year,`Technological interaction term`)
-
-formatted_sda = sda_results %>% select(`Distributed footprint`,year,case) %>%
-  pivot_wider(names_from = 'case',values_from = `Distributed footprint`) %>%
-  mutate(Reference = lag(`10`),
-         `Direct emissions intensity contribution` = Reference - `1`,
-         `Suppliers' direct emissions intensity contribution` = Reference - `2`,
-         `Check emission intensity` = Reference - `7`,
-         `Direct production technology contribution` = Reference - `3`,
-         `Suppliers' production technology contribution` = Reference - `4`,
-         `Technological interaction term contribution` = Reference - `8` - `Direct production technology contribution` - `Suppliers' production technology contribution`,
-         `Check production technology` = Reference - `8`,
-         `Final demand to the sector contribution` = Reference - `5`,
-         `Final demand to the rest of the economy contribution` = Reference - `6`,
-         `Check final demand` = Reference - `9`,
-         `Check global changes` = Reference - `10`,
-         #`1st interaction term` = Reference - Check emission intensity -   ,
-         #`2nd interaction term` = Reference - `12`,
-         `Interaction term` = `12` * 2 - `8` - `9`)
-
-
-print("Check Emissions intensity")
-print(formatted_sda[,"Direct emissions intensity contribution"] +
-        formatted_sda[,"Suppliers' direct emissions intensity contribution"] - formatted_sda[,"Check emission intensity"])
-
-print("Check Production technology")
-print(formatted_sda[,"Direct production technology contribution"] +
-        formatted_sda[,"Suppliers' production technology contribution"] +
-        formatted_sda[,"Technological interaction term contribution"] -
-        formatted_sda[,"Check production technology"])
-
-print("Check final demand")
-print(formatted_sda[,"Final demand to the sector contribution"] +
-        formatted_sda[,"Final demand to the rest of the economy contribution"] - formatted_sda[,"Check final demand"])
-
-print("Global check")
-print(formatted_sda[,"Check emission intensity"] +
-        formatted_sda[,"Check production technology"] +
-        formatted_sda[,"Check final demand"] -
-        formatted_sda[,"Check global changes"])
-
-print(
-  formatted_sda[,"Check emission intensity"]+
-  formatted_sda[,"Check production technology"]+
-  formatted_sda[,"Check final demand"] +
-  #formatted_sda[,"1st interaction term"] +
-  formatted_sda[,"Interaction term"] -
-  #formatted_sda[,"3rd interaction term"] -
-  formatted_sda[,"Check global changes"])
-
-
-for(year in year_list[-1])
-{
-
-  current_year = year
-
-  previous_year = year - 1
-
-  params = sda_params(list_data,previous_year = previous_year,current_year = current_year,selected_industry = selected_industry)
-
-  diffd0 =
-    io_aggregation_methods(d = params$current_final_demand,
-                         c = params$previous_emissions_intensity,
-                         a = params$previous_technology,
-                         selected_industry = selected_industry)
-
-  diffd1 =
-    io_aggregation_methods(d = params$previous_final_demand,
-                           c = params$current_emissions_intensity,
-                           a = params$current_technology,
-                           selected_industry = selected_industry)
+  return(sda_results)
 
 }
 
+ggplot(sda_results %>% mutate(id = seq(2010,2020+2/3,1/3), Contributions = gsub("\\."," ",Contributions)), aes(time_period, fill = Contributions)) + geom_rect(aes(
+                                                             xmin = id, xmax = id + 1/3, ymin = End,
+                                                             ymax = Start)) +
+  theme_tufte() + scale_x_continuous(n.breaks = 11) +
+  theme(
+    legend.position = "bottom",
+    text = element_text(size = 14),  # Set overall text size
+    axis.title = element_text(size = 14),  # Set axis title size
+    axis.text = element_text(size = 14),  # Set axis title size
+    legend.text = element_text(size = 14),  # Set legend text size
+    legend.title = element_text(size = 14),  # Set legend title size
+    strip.text = element_text(size = 14)    # Set facet strip text size
+  ) +
+  scale_y_continuous(name = "MT CO2e",labels = function(x) x / 1000) +
+  xlab(NULL) +
+  theme(panel.grid.major.x = element_line(linewidth = 0.01,colour = 'grey'),
+        axis.ticks = element_blank())
 
 
-#REMAINING WORK :
-
-# -add rows for technology interaction term
-# -deduct contributions over the time serie
-# -format a barplot composed of each contribution (geom_bar) and a net total term (geom_point)
-#
-# -apply the method to the rest of the economy for comparison purposes.
-# -write the corresponding paper section
-# -cite some suited references
