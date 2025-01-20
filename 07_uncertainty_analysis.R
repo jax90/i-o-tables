@@ -154,8 +154,6 @@ mc_sensitivity_analysis = function(values_agg,
 
     diag(Z)[diag(Z) == colSums(Z,na.rm = T)] = 0
 
-    Zp = Z
-
     D = input_output[,grepl('P3|P5',colnames(input_output))] %>%
       as.matrix() %>%
       rowSums(na.rm = T)
@@ -175,9 +173,9 @@ mc_sensitivity_analysis = function(values_agg,
 
         draws_E = lapply(E$direct_emissions,perturb_e_lenzen,n = n)
 
-        Xp = matrix(rowSums(Zp,na.rm = T) + D,ncol = 1)
+        Xp = matrix(rowSums(Z,na.rm = T) + D,ncol = 1)
 
-        Ap = sweep(Zp,2,as.numeric(Xp),`/`) ; Ap[is.nan(Ap) | is.infinite(Ap)] = 0
+        Ap = sweep(Z,2,as.numeric(Xp),`/`) ; Ap[is.nan(Ap) | is.infinite(Ap)] = 0
 
         if(verbose) print("Inversing Leontief matrix...")
 
@@ -192,6 +190,7 @@ mc_sensitivity_analysis = function(values_agg,
 
         if(x == 'interactions')
         {
+          Zp = Z
 
           if(verbose) print("Logarithmic draws...")
 
@@ -208,7 +207,36 @@ mc_sensitivity_analysis = function(values_agg,
 
           if(verbose) print("Inversing Leontief matrix...")
 
-          Lp = solve(diag(nrow = nrow(Ap)) - Ap)
+          count_error = 0
+
+          Lp = try(solve(diag(nrow = nrow(Ap)) - Ap),silent = T)
+
+          while(inherits(Lp,'try-error'))
+          {
+            count_error = count_error + 1
+
+            if(verbose) print(paste0('Inversion error ',count_error,' - Abort and restart procedure...'))
+
+            Zp = Z
+
+            if(verbose) print("Logarithmic draws...")
+
+            for(j in 1:length(Zp))
+            {
+              Zp[j] = perturb_z_lenzen(Zp[j])
+            }
+
+            diag(Zp)[diag(Zp) == colSums(Zp,na.rm = T)] = 0
+
+            Xp = matrix(rowSums(Zp,na.rm = T) + D,ncol = 1)
+
+            Ap = sweep(Zp,2,as.numeric(Xp),`/`) ; Ap[is.nan(Ap) | is.infinite(Ap)] = 0
+
+            if(verbose) print("Inversing Leontief matrix...")
+
+            Lp = try(solve(diag(nrow = nrow(Ap)) - Ap),silent = T)
+
+          }
 
         }
 
@@ -377,7 +405,7 @@ mc_sensitivity_analysis = function(values_agg,
 mc_sensitivity_analysis(values_agg,
                         emissions,
                         time_period = 2021,
-                        sim = 'interactions',
+                        sim = 'emissions',
                         rule = 'Wilting',
                         n = 1000)
 
@@ -398,33 +426,70 @@ mc_sensitivity_analysis(values_agg,
 
 original_fpt = 2140567
 
+
 dt = read.csv("C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23/MC Analysis/Wilting/mc_resultsinteractions.csv",sep = ";",header = T,row.names = NULL,check.names = F) %>%
   filter(!is.na(`Distributed footprint`)) %>%
-  mutate(Simulation = 'Wilting (2012)') %>%
+  mutate(Simulation = 'MRIOT') %>%
+  rbind(
+    read.csv("C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23/MC Analysis/Wilting/mc_resultsemissions.csv",sep = ";",header = T,row.names = NULL,check.names = F) %>%
+      filter(!is.na(`Distributed footprint`)) %>%
+      mutate(Simulation = 'Emissions')
+  ) %>%
+  mutate(paper = 'Wilting (2012)') %>%
   rbind(
     read.csv("C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23/MC Analysis/Wood-Lenzen/mc_resultsinteractions.csv",sep = ";",header = T,row.names = NULL,check.names = F) %>%
       filter(!is.na(`Distributed footprint`)) %>%
-      mutate(Simulation = 'Lenzen (2018)')
-  )
+      mutate(Simulation = 'MRIOT') %>%
+      rbind(
+        read.csv("C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23/MC Analysis/Wood-Lenzen/mc_resultsemissions.csv",sep = ";",header = T,row.names = NULL,check.names = F) %>%
+          filter(!is.na(`Distributed footprint`)) %>%
+          mutate(Simulation = 'Emissions')
+      ) %>%
+      mutate(paper = 'Lenzen (2018)')
+  ) %>%
+  group_by(Simulation,paper) %>%
+  mutate(mean_sim = mean(`Distributed footprint`),
+         p5 = quantile(`Distributed footprint`,probs = .05),
+         p95 = quantile(`Distributed footprint`,probs = .95),
+         q5 = quantile(`Distributed footprint`,probs = .5),
+         mean = mean(`Distributed footprint`,na.rm = T),
+         n = n(),
+         margin_error = 1.96*sd(`Distributed footprint`)/sqrt(n())) %>%
+  ungroup()
+
 
 
 options(scipen = 999)
 
 scale = 1000
 
-ggplot(dt %>% mutate(`Distributed footprint` = `Distributed footprint` / scale),
+paper = 'Wilting (2012)'
+paper = 'Lenzen (2018)'
+
+ggplot(dt %>% mutate(`Distributed footprint` = `Distributed footprint` / scale) %>% filter(paper == !!paper),
        aes(x = `Distributed footprint`,colour = "black")) + geom_density(linewidth = .75,color = 'black') +
-  theme_tufte() +
-  geom_vline(aes(xintercept=quantile(`Distributed footprint`,probs = .05),
+  theme_bw(base_family = 'serif', base_size = 11) + #tufte source code
+  theme(
+    legend.background = element_blank(),
+    legend.key = element_blank(),
+    panel.background = element_blank(),
+    #panel.border = element_blank(),
+    strip.background = element_blank(),
+    plot.background = element_blank(),
+    axis.line = element_blank(),
+    panel.grid = element_blank()
+  ) +
+  geom_vline(aes(xintercept=p5/scale,
              colour="Perc. 5 and 95"), linetype="dashed", linewidth=1) +
-  geom_vline(aes(xintercept=quantile(`Distributed footprint`,probs = .95),
+  geom_vline(aes(xintercept=p95/scale,
              colour="Perc. 5 and 95"), linetype="dashed", linewidth=1) +
-   geom_vline(aes(xintercept=quantile(`Distributed footprint`,probs = .5),
-              colour="Median"), linetype="dashed", linewidth=1) +
-  geom_vline(aes(xintercept=mean(`Distributed footprint`),
-             colour="Mean"), linetype="dashed", linewidth=1) +
+    geom_vline(aes(xintercept=q5/scale,
+               colour="Median"), linetype="2121", linewidth=1) +
+  geom_vline(aes(xintercept=mean_sim/scale,
+             colour="Mean"), linetype ="1212", linewidth=1) +
   geom_vline(aes(xintercept=original_fpt/scale,
              colour="Actual"), linewidth=1) +
+  # geom_rect(aes(xmin = (mean - margin_error)/scale, xmax = (mean + margin_error)/scale, ymin = -Inf, ymax = Inf),alpha = .005,show.legend = F,color = 'lightgrey')+
 
   theme(axis.line.y=element_blank(),
         axis.text.y=element_blank(),
@@ -432,9 +497,16 @@ ggplot(dt %>% mutate(`Distributed footprint` = `Distributed footprint` / scale),
         axis.title.y=element_blank(),
         legend.title=element_blank(),
         legend.position="bottom",
-        legend.box = "horizontal") +
+        legend.box = "horizontal",
+        strip.text = element_text(size=20),
+        axis.text.x = element_text(size=20),
+        axis.title.x = element_text(size=20),
+        legend.text = element_text(size = 18)) +
   scale_colour_manual(name = 'colour',
                       values =c('Perc. 5 and 95'='red','Mean'='green','Median' = 'cyan','Actual' = 'black'))  +
-  xlim(c((2150000 - 100000) / scale, (2150000 + 100000) / scale))+
-  labs(x = 'World ICT production footprint (in MT CO2e)') +
-  facet_wrap(~Simulation)
+  #xlim(c(2000000 / scale, 2250000 / scale))+
+  xlim(c(2100000 / scale, 2200000 / scale))+
+  facet_wrap(~Simulation,scales = 'free_x') +
+  labs(x = 'World ICT production footprint (in MT CO2e)')
+
+

@@ -133,9 +133,9 @@ currency_converter_oecd = function(value,iso3_origin,iso3_destination,year,col_v
 }
 
 
-rsd_z_lenzen = function(ei)
+rsd_z_lenzen = function(zij)
 {
-  return(.393 * ei^(-.302))
+  return(.393 * zij^(-.302))
 }
 
 rsd_e_lenzen = function(ei)
