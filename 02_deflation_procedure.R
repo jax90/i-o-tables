@@ -1,7 +1,4 @@
-x = c('dplyr','tidyr','tibble','curl','stringr','ggplot2','eurostat','xml2','rvest','data.table','arrow','countrycode','here')
-#lapply(x,install.packages,character.only = T)
 
-lapply(x,library,character.only = T)
 
 source(here("utils.R"))
 

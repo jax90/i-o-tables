@@ -1,30 +1,26 @@
 #main path <- "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23"
 #main_path <- "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23"
-main_path <- "/home/jannaaxe/Schreibtisch/Projekte/IO-analysis"
-user = "jax"
 
-x = c('tidyverse','data.table','arrow','leontief','here')
-lapply(x, library,character.only = T)
 
-lapply(lapply(c('00_aggregate_CO2_emission_files.R',
-         '01_aggregate_value_added_files.R',
-         '02_deflation_procedure.R'),here),source)
-
-values_agg = format_iot(folder = if(user =="jax"){paste0(main_path, "/data/values")}else(main_path),
-                        exdir = if(user =="jax"){paste0(main_path, "/data/values")}else(main_path),
+values_agg = format_iot(folder = if(user =="jax"){paste0(main_path, "/data/values")}else{main_path},
+                        exdir = if(user =="jax"){paste0(main_path, "/data/values")}else{main_path},
                         update = F)
 
-emissions <- format_emissions(folder = if(user =="jax"){paste0(main_path, "/data/emissions")}else(main_path),
-                              exdir =if(user =="jax"){paste0(main_path, "/data/emissions")}else(main_path),
+emissions <- format_emissions(folder = if(user =="jax"){paste0(main_path, "/data/emissions")}else{main_path},
+                              exdir =if(user =="jax"){paste0(main_path, "/data/emissions")}else{main_path},
                               update = F) %>%
   unite(resource_id, ref_area,industry, sep = "_") |>
   group_by(resource_id,time_period) %>%
   summarise(direct_emissions = sum(obs_value,na.rm = T)) %>%
   mutate(time_period = as.character(time_period)) %>%
+  ungroup() %>%
+  group_by(time_period) %>%
+  mutate(absolute_emissions = sum(direct_emissions ,na.rm = T)) %>%
   ungroup()
 
+
 eeio_computations = function(input_output,
-                             emissions,
+                             emissions_year,
                              verbose = T)
 {
 
@@ -32,7 +28,7 @@ eeio_computations = function(input_output,
 
   X = rowSums(input_output,na.rm = T)
 
-  B = emissions %>%
+  B = emissions_year %>%
     mutate(production = X[match(resource_id,names(X))]) %>%
     reframe(value = case_when(production == 0 ~ 0,
                               T ~ direct_emissions / production))
@@ -67,7 +63,7 @@ eeio_computations = function(input_output,
 
   if(verbose) print(paste0("Computing production footprints..."))
 
-
+  L = L_adjust = solve(diag(nrow = nrow(A)) - A)
   Int <- matrix(0, nrow = dim(L_adjust)[1], ncol = dim(L_adjust)[1])
 
   selected_industry_num = grep('26|61|62|63',colnames(x=L_adjust))
@@ -113,20 +109,69 @@ eeio_computations = function(input_output,
 
   total_fpt = colSums(distributed_fpt,na.rm = T)
 
-  E_ict = diag(x = emissions$direct_emissions) ; E_ict = E_ict[,selected_industry_num]
+  E_ict = diag(x = emissions_year$direct_emissions) ; E_ict = E_ict[,selected_industry_num]
 
   indirect_fpt = distributed_fpt - E_ict
 
-  scope2 = colSums(indirect_fpt[grep('D35',colnames(x=L_adjust)),],na.rm = T)
-  scope3 = colSums(indirect_fpt[-grep('D35',colnames(x=L_adjust)),],na.rm = T)
+  #scope2 = colSums(indirect_fpt[grep('D35',colnames(x=L_adjust)),],na.rm = T)
+  # that appears not as a valid calculation to me, because now you consider the energy that was necessary for
+  #mining, chemicals, etc. as scope 2 .. But as I understand scope 2 emissions are emissions from the energy sector
+  #that go into ICT industries directly
+
+  if(verbose) print(paste0("Computing scope 1,2, and 3 for individual industries..."))
+
+  scope1 <- list()
+  scope2 <- list()
+  scope3 <- list()
+
+
+  for (industry in c("C26", "J61", "J62_63"))
+  {
+
+    scope1[[industry]] <-  emissions_year %>%
+      filter(grepl(industry, resource_id)) %>%
+      pull(direct_emissions) %>% sum()
+
+    #scope 2
+    scope2[[industry]] <- input_output |>
+      as_tibble() %>%
+      select(matches(industry)) %>%
+      mutate(
+        industry_ref_area = rownames(input_output),
+        B = B$value
+      ) %>%
+      filter(grepl("D35", industry_ref_area)) %>%
+      select(-industry_ref_area) %>%
+      mutate(across(-B, \(x){x * B})) %>%
+      select(-B) %>%
+      sum()
+
+    # embodied emissions per industry
+    L_adjust <- L
+    Int_i <- matrix(0, nrow = dim(L_adjust)[1], ncol = dim(L_adjust)[1])
+    selected_industry_num = grep(industry ,colnames(x=L_adjust))
+
+    for(i in selected_industry_num)
+    {
+        #equation 8 / equation 11
+        Int_i <- Int_i + (1 / L_adjust[i, i] *  L_adjust[, i]  %*%   t(L_adjust[i, ]))
+        # equation 9
+        L_adjust  <- L -  Int_i
+    }
+
+    scope3[[industry]] = t(B) %*% Int_i %*% as.matrix(D) - scope1[[industry]] - scope2[[industry]]
+
+  }
+
+
+
+  ### this does not solve the issue of douple counting across countries? For instance DE_C26 and F_C26 right?
+#  scope3 = colSums(indirect_fpt[-grep('D35',colnames(x=L_adjust)),],na.rm = T)
 
   production_fpt_elements = data.frame(
     resource_id = rownames(L_adjust)[selected_industry_num],
-    scope_2 = scope2,
-    scope_3 = scope3,
     production_footprint = total_fpt
-  )
-
+    )
   # scope1 = emissions$direct_emissions[selected_industry_num]
   # print(cbind(scope1+scope2+scope3,total_fpt)) #IT WORKS
 
@@ -141,11 +186,26 @@ eeio_computations = function(input_output,
                 `colnames<-`(paste0("Intwght_",colnames(.))) %>%
                 rownames_to_column('resource_id'),
               by = 'resource_id') %>%
-    left_join(distributed_fd_fpt,by = 'resource_id') %>%
     mutate(total_final_demand = D,
            total_output = X,
-           direct_emissions = emissions$direct_emissions[match(resource_id,emissions$resource_id)]) %>%
-    left_join(production_fpt_elements,by = 'resource_id')
+           direct_emissions = emissions_year$direct_emissions[match(resource_id,emissions_year$resource_id)],
+           absolute_emissions = emissions_year$absolute_emissions[match(resource_id,emissions_year$resource_id)],
+           ) %>%
+   # left_join(production_fpt_elements,by = 'resource_id') %>%
+    mutate(
+      scope1_C26 = scope1[["C26"]],
+      scope2_C26 = scope2[["C26"]],
+      scope3_C26 = scope3[["C26"]],
+      scope1_J61 = scope1[["J61"]],
+      scope2_J61 = scope2[["J61"]],
+      scope3_J61 = scope3[["J61"]],
+      scope1_J62_63 = scope1[["J62_63"]],
+      scope2_J62_63 = scope2[["J62_63"]],
+      scope3_J62_63 = scope3[["J62_63"]]
+    ) %>%
+    left_join(distributed_fd_fpt,by = 'resource_id')
+
+
 
 
   return(results_table)
@@ -181,14 +241,16 @@ eeio_analysis = function(values_agg,
 
   if(verbose) print('Computing price indexes and deflating...')
 
+  if(basis != F)
+  {
+
   price_index = get_value_added_price_index(basis) |>
     rename(deflator = value,
            ref_area = country,
            time_period = year) |>
     select(-base)
 
-  if(basis != F)
-  {
+
     values_agg =
     values_agg %>%
     separate(rowLabels,into = c('ref_area','industry'),sep = "_",remove = F,extra = 'merge') %>%
@@ -241,6 +303,8 @@ eeio_analysis(values_agg = values_agg,
               file_name = "footprint_results_23_data.parquet",
               exdir = if(user =="jax"){paste0(main_path, "/data")}else(main_path),
               update = T)
+
+
 
 
 
