@@ -1,4 +1,4 @@
-x = c('tidyverse','data.table','arrow')
+x = c('tidyverse','data.table','arrow','xml2','rvest')
 lapply(x, library,character.only = T)
 
 #ref_area refers to rows
@@ -17,8 +17,58 @@ read_csv_with_time <- function(file_path) {
 format_iot = function(folder, #matrix_eu-ic-io_ind-by-ind_23ed local path
                       exdir,
                       update = F,
-                      verbose = T)
+                      verbose = T,
+                      version = "local")
 {
+
+  if(version == "online")
+  {
+
+    if(!update)
+    {
+      if(file.exists(paste0(exdir,"/online_figaro/values_agg.parquet")))
+      {
+        if(verbose) print('Returning cached data')
+        return(read_parquet(paste0(exdir,"/online_figaro/values_agg.parquet")))
+      }
+      if(verbose) print('File does not exists yet, updating...')
+    }
+
+    links = read_html("https://ec.europa.eu/eurostat/web/esa-supply-use-input-tables/database") %>%
+      html_nodes("a") %>%
+      html_attr("href") %>%
+      subset(grepl("matrix_eu-ic",.) & grepl("io_ind-by-ind",.))
+
+    years = strsplit(links,"ed_") %>%
+      sapply(., "[[", 2) %>%
+      substr(.,1,4)
+
+    values_agg = c()
+
+    for(i in years)
+    {
+      link = links %>% subset(.,grepl(i,.))
+
+      mriot = fread(paste0("https://ec.europa.eu/",link)) %>%
+        mutate(time_period = i)
+
+      values_agg = rbind(
+        values_agg,
+        mriot
+      )
+
+      if(verbose) print(paste0("FIGARO MRIOT fetched and formatted for year ",i))
+
+    }
+
+    if(!dir.exists(paste0(exdir,"/online_figaro"))) dir.create(paste0(exdir,"/online_figaro"))
+
+    write_parquet(values_agg, paste0(exdir,"/online_figaro/values_agg.parquet"))
+
+    return(values_agg)
+
+  }
+
 
   if(!update)
   {
@@ -49,6 +99,20 @@ format_iot = function(folder, #matrix_eu-ic-io_ind-by-ind_23ed local path
 
 }
 
-# format_iot(folder = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
-#            exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
-#            update = T)
+# ed23 =
+#   format_iot(folder = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
+#             exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
+#             update = F) %>%
+#   arrange(time_period,rowLabels)
+#
+# ed24 =
+#   format_iot(folder = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
+#              exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
+#              update = F,
+#              version = "online") %>%
+#   filter(time_period != 2022) %>%
+#   arrange(time_period,rowLabels)
+#
+# comp = (ed24 %>% select(!c(time_period,rowLabels) ) -
+#           ed23 %>% select(!c(time_period,rowLabels))) %>%
+#   cbind(ed24 %>% select(c(time_period,rowLabels)))

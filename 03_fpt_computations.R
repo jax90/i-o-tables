@@ -7,7 +7,8 @@ lapply(lapply(c('00_aggregate_CO2_emission_files.R',
 
 values_agg = format_iot(folder = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
                         exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
-                        update = F)
+                        update = F) %>%
+  filter(rowLabels %in% colnames(.))
 
 emissions <- format_emissions(exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
                               update = F) %>%
@@ -16,6 +17,19 @@ emissions <- format_emissions(exdir = "C:/Users/Joris/OneDrive - La Société No
   summarise(direct_emissions = sum(obs_value,na.rm = T)) %>%
   mutate(time_period = as.character(time_period)) %>%
   ungroup()
+
+
+X_time_serie = data.frame(value = rowSums(values_agg %>% select(!c(time_period,rowLabels)),na.rm=T),
+                          values_agg %>% select(c(time_period,rowLabels)))
+
+emissions_bis =  format_emissions(exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
+                                  update = F,
+                                  version = 'online') %>%
+  unite(resource_id, ref_area,industry, sep = "_") %>%
+  mutate(output = X_time_serie$value[match(paste0(time_period,resource_id),
+                                           paste0(X_time_serie$time_period,X_time_serie$rowLabels))],
+         intens = obs_value / output) %>%
+  filter(!is.na(output))
 
 eeio_computations = function(input_output,
                              emissions,

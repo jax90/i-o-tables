@@ -20,7 +20,7 @@
 
 
 
-x = c('arrow','ggthemes','xtable')
+x = c('arrow','ggthemes','xtable','countrycode')
 
 lapply(x,library,character.only=T)
 
@@ -36,6 +36,7 @@ df <- emissions |>
   ungroup()
 
 
+
 fig_frame <- df |>
   mutate(embodied_emissions = rowSums(df |> select(starts_with("embodied_emissions")), na.rm = TRUE)) |>
   group_by(time_period) |>
@@ -46,6 +47,179 @@ fig_frame <- df |>
   mutate(rel_embodied_final = embodied_final / absolute_emissions) |>
   ungroup() |> drop_na()
 
+
+#TABLE ON DIGITAL DEMAND FOOTPRINT DISTRIBUTIONS
+
+non_oecd = countrycode(c("Argentine","Bulgarie","Brésil","Chine","Chypre","Croatie","Indonésie","Inde","Malte","Roumanie","Russie","Arabie Saoudite","Afrique du Sud"),
+                       'country.name.fr',
+                       'iso2c')
+
+additional_analysis_fd =
+  df %>%
+  select(time_period,industry,country_prod = country,matches("_P3|_P5")) %>%
+  pivot_longer(-c(1:3),names_to = 'fd') %>%
+  mutate(fd1 = case_when(grepl('S13',fd) ~ "General government",
+                         grepl('S14',fd) ~ "Households",
+                         grepl('S15',fd) ~ "NPISH",
+                         grepl('P51G',fd) ~ "Gross Fixed Capital Formation",
+                         grepl('P5M',fd) ~ "Change in Inventories and Valuables"
+                         ))  %>%
+  mutate(fd3 = substring(fd,20),
+         country = case_when(grepl('FIGW1',fd3) ~ 'FIGW1',
+                             T ~ substr(fd3,1,2))) %>%
+  mutate(country_zone = case_when(country %in% codelist$iso2c[!is.na(codelist$eu28)] ~ "EU",
+                                  country %in% c("US","JP","CN","IN","KR",'RU') ~ country,
+                                  T ~ 'ROW'),
+         country_prod_zone = case_when(country_prod %in% codelist$iso2c[!is.na(codelist$eu28)] ~ "EU",
+                                       country_prod %in% c("US","JP","CN","IN","KR",'RU') ~ country_prod,
+                                       T ~ 'ROW')) %>%
+  mutate(country_label = case_when(country_zone == 'EU' ~ 'European Union (28)',
+                                   country %in% c("US","CN") ~ countrycode(country,'iso2c','country.name'),
+                                   country %in% non_oecd  ~ "Rest of the world (Non-OECD)",
+                                   T ~ 'Rest of the world (OECD)'),
+         country_prod_label = case_when(country_prod_zone == 'EU' ~ 'European Union (28)',
+                                        country_prod %in% c("US","CN") ~ countrycode(country_prod,'iso2c','country.name'),
+                                        country_prod %in% non_oecd  ~ "Rest of the world (Non-OECD)",
+                                        T ~ 'Rest of the world (OECD)'))
+
+fd_by_type =
+  additional_analysis_fd %>%
+  group_by(fd1,time_period) %>%
+  summarise(value = sum(value,na.rm = T)) %>%
+  group_by(time_period) %>%
+  mutate(share = value / sum(value,na.rm = T))
+#general government = +0.5 pts 2010 to 2021
+
+ggplot(data = fd_by_type,aes(x = time_period,y = value,color = fd1,group = fd1)) + geom_line()
+
+fd_by_country =
+  additional_analysis_fd  %>%
+  group_by(country_zone,time_period) %>%
+  summarise(value = sum(value,na.rm = T))  %>%
+  group_by(time_period) %>%
+  mutate(share = value / sum(value,na.rm = T)) %>%
+  group_by(country_zone) %>%
+  mutate(evol = value[time_period == 2021] / value[time_period == 2010],
+         invevol = (value[time_period == 2021] - value[time_period == 2010]) / value[time_period == 2010])
+
+ggplot(data = fd_by_country %>% filter(share > .05),aes(x = time_period,y = share,color = country_zone,group = country_zone)) + geom_line()
+
+
+
+figure_time_self_located_ict_emissions =
+  additional_analysis_fd %>%
+  group_by(country_label,country_prod_label,time_period)  %>%
+  summarise(value = sum(value)) %>%
+  group_by(time_period,country_label) %>%
+  mutate(share = round(100 * value / sum(value),2)) %>%
+  ungroup() %>%
+  filter(country_label == country_prod_label)
+
+table_figure_self_located = figure_time_self_located_ict_emissions %>%
+  filter(time_period %in% c(min(time_period),max(time_period))) %>%
+  mutate(col_name = paste0("Share in ",time_period)) %>%
+  select(Country = country_label,col_name,share) %>%
+  pivot_wider(names_from = col_name,values_from = share) %>%
+  arrange(-`Share in 2021`)
+
+xtable(table_figure_self_located)
+
+
+prep_table=additional_analysis_fd %>%
+  group_by(country_label,fd1,industry,time_period) %>%
+  filter(time_period %in% c(2021)) %>%
+  summarise(value = sum(value)) %>%
+  group_by(time_period,country_label) %>%
+  mutate(share = value / sum(value)) %>%
+  mutate(top5 = sort(share,partial=n()-4)[n()-4]) %>%
+  filter(share >= top5) %>%
+  arrange(-share) %>%
+  select(country_label,fd1,industry,time_period,share) %>%
+  mutate(n = 1:n(),
+         lib = paste0(country_label," - ",n)) %>%
+   ungroup() %>%
+  mutate(industry = case_when(industry == 'C26' ~ 'Hardware',
+                              industry == 'J61' ~ 'Communications',
+                              industry == 'J62_63' ~ 'IT services',
+                              industry == 'O84' ~ 'Public administration',
+                              industry == 'F' ~ 'Construction',
+                              industry == 'C28' ~ 'Machinery and equipment'),
+         fd1 = case_when(fd1 == "Gross Fixed Capital Formation" ~ 'Investment',
+                         fd1 == "General government" ~ "Public consumption",
+                         fd1 == "Households" ~ "Households consumption"),
+         share = round(share * 100,2))
+
+prep_table_aggreg=additional_analysis_fd %>%
+  group_by(country_label,fd1) %>%
+  filter(time_period %in% c(2021)) %>%
+  summarise(value = sum(value)) %>%
+  group_by(country_label) %>%
+  mutate(share = round(value / sum(value) * 100,2)) %>%
+  filter(fd1 %in% c("Gross Fixed Capital Formation","Households")) %>%
+  arrange(-share) %>%
+  select(Country = country_label,fd1,share) %>%
+  ungroup() %>%
+  pivot_wider(names_from = fd1,values_from = share)
+
+disaggreg_table =
+  data.frame(`Country or Area` = unique(prep_table$country_label),check.names = F) %>%
+  mutate(prep_table[match(paste0(`Country or Area`," - ",1),prep_table$lib),c("share","industry","fd1")]) %>%
+  rename(`Share 1` = share,`Industry 1` = industry,`Final demand category 1` = fd1) %>%
+  merge(prep_table_aggreg,by.x = 'Country or Area',by.y = 'Country') %>%
+  # mutate(prep_table[match(paste0(`Country or Area`," - ",2),prep_table$lib),c("share","industry","fd1")]) %>%
+  # rename(`Share 2` = share,`Industry 2` = industry,`Final demand category 2` = fd1) %>%
+  # mutate(prep_table[match(paste0(`Country or Area`," - ",3),prep_table$lib),c("share","industry","fd1")]) %>%
+  # rename(`Share 3` = share,`Industry 3` = industry,`Final demand category 3` = fd1) %>%
+  mutate(`Country or Area` = case_when(`Country or Area` == "Rest of the world (Non-OECD)" ~ "ROW (Non-OECD)",
+                                       `Country or Area` == "Rest of the world (OECD)" ~ "ROW (OECD)",
+                                       `Country or Area` == "European Union (28)" ~ "EU 28",
+                                       T ~ `Country or Area`)) %>%
+  {.[c(1,2,5,4,3),]} %>%
+  xtable()
+
+#1st share 2nd share 3rd share 4th share 5th share || global without industry
+#
+# View(additional_analysis_fd %>%
+#        group_by(country_zone,time_period) %>%
+#        summarise(value = sum(value)) %>%
+#        group_by(time_period) %>%
+#        mutate(share = value / sum(value)))
+#
+# View(additional_analysis_fd %>%
+#        group_by(fd1,time_period) %>%
+#        summarise(value = sum(value)) %>%
+#        group_by(time_period,country_zone) %>%
+#        mutate(share = value / sum(value)))
+#
+# View(additional_analysis_fd %>%
+#        group_by(country_zone,fd1,country_prod_zone,industry,time_period) %>%
+#        summarise(value = sum(value)) %>%
+#        group_by(time_period,country_zone) %>%
+#        mutate(share = value / sum(value)))
+#
+# View(additional_analysis_fd %>%
+#        mutate(industry = case_when(
+#          industry == "C26" ~ "hardware",
+#          industry == "J61" ~ "communications",
+#          industry == "J62_63" ~ "IT services",
+#          TRUE ~ "mediated via other industries")) %>%
+#        group_by(industry,time_period) %>%
+#        summarise(value = sum(value)) %>%
+#        group_by(time_period) %>%
+#        mutate(share = value / sum(value)))
+#
+# View(df %>%
+#        select(direct_emissions,industry,time_period) %>%
+#        group_by(time_period,industry) %>%
+#        summarise(value = sum(direct_emissions,na.rm=T)))
+
+#Understanding Electricity and gas supply constitute the largest share of direct emissions (40.9\%), followed by basic metals (11.2\%), and mining and quarrying (9.8\%)
+
+# Link A, L and indirect_fpt
+
+
+#Analyzing sectoral scope 2 evolutions. Maybe the average carbonation of the D35 used by ICT
+#Analyzing sector scope 3 evolutions and structure (decomposing)
 
 # Results Figure 1:
 
