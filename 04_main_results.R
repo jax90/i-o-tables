@@ -8,8 +8,12 @@ lapply(x,library,character.only=T)
 
 options(scipen = 100, digits = 4)
 
-emissions <- read_parquet( if(user =="jax"){paste0(main_path, "/data/footprint_results_23_data.parquet")}else{main_path}) |>
-  separate(resource_id,into = c('country',"industry"),extra = 'merge',sep = "_")
+emissions <- read_parquet( if(user =="jax"){paste0(main_path, "/data/footprint_results_",edition,"_data.parquet")}else{main_path}) |>
+  separate(resource_id,into = c('country',"industry"),extra = 'merge',sep = "_") |>
+  mutate(year = as.integer(time_period)) |>
+  filter(year >= as.integer(start_year)) |>
+  filter(year <= as.integer(end_year)) |>
+  select(-year)
 
 df <- emissions |>
   select(industry, country,
@@ -51,7 +55,7 @@ fd_emissions_over_time <- ggplot(fig_frame, aes(x = as.integer(time_period))) +
   scale_y_continuous(
     name = "CO2e in mt",
     sec.axis = sec_axis(~ ./100, name = "relative CO2e in %"),
-    limits = c(0, 5000)
+    limits = c(0, 3000)
   ) +
 
   labs(x = "year",
@@ -71,7 +75,8 @@ fd_emissions_over_time <- ggplot(fig_frame, aes(x = as.integer(time_period))) +
 
 fd_emissions_over_time
 
-ggsave("./results/figures/emissions_over_time.pdf",
+ggsave(
+       paste0("./results/figures/emissions_over_time_",edition ,"_", start_year, "_", end_year ,".pdf"),
        plot = fd_emissions_over_time, width = 8, height = 6, dpi = 300)
 
 fig_frame_industry <- df |>
@@ -100,6 +105,9 @@ emissions_over_time_by_industry <- fig_frame_industry |>
     "hardware" = "#68011f",
     "communications" = "#f2a27d",
     "IT services" =  "#2367ae")) +
+  scale_y_continuous(
+    limits = c(0, 3000)
+  ) +
   theme_tufte() +
   theme(legend.position = "bottom",
         text = element_text(size = 14),  # Set overall text size
@@ -114,7 +122,7 @@ emissions_over_time_by_industry <- fig_frame_industry |>
 
 emissions_over_time_by_industry
 
-ggsave("./results/figures/emissions_over_time_by_industry.pdf",
+ggsave(paste0("./results/figures/emissions_over_time_by_industry_",edition ,"_", start_year, "_", end_year ,".pdf"),
        plot = emissions_over_time_by_industry, width = 8, height = 6, dpi = 300)
 
 fig_frame_industry |>
@@ -155,15 +163,16 @@ scopes_industry <- df |>
 
 
 scopes_by_industry <- ggplot() +
-  geom_bar(data = scopes_industry %>% filter(time_period == 2022),
-           aes(x = scope, y = value / 1000, color = "2022", fill = industry),
+  geom_bar(data = scopes_industry %>% filter(time_period == end_year),
+           aes(x = scope, y = value / 1000, color = end_year, fill = industry),
            stat = "identity", alpha = 0.5) +
   # Add points for 2010
-  geom_point(data = scopes_industry %>% filter(time_period == "2010"),
-             aes(x = scope, y = value / 1000, color = "2010", shape = "2010"),
+  geom_point(data = scopes_industry %>% filter(time_period == start_year),
+             aes(x = scope, y = value / 1000, color =start_year, shape = start_year),
              size = 4) +
   # Define shape and color scales for legend
-  scale_color_manual(name = "year", values = c("2010" = "red", "2022" = "darkgrey")) +
+  scale_color_manual(name = "year",
+                     values = c( start_year = "red", end_year= "darkgrey")) +
   scale_fill_manual(
     name = "industry",
     values = c(
@@ -189,7 +198,6 @@ scopes_by_industry <- ggplot() +
         text = element_text(size = 20),  # Set overall text size
         axis.title = element_text(size = 20),  # Set axis title size
         axis.text = element_text(size = 20),  # Set axis title size
-        legend.text = element_text(size = 20),  # Set legend text size
         legend.title = element_text(size = 20),  # Set legend title size
         strip.text = element_text(size = 20)    # Set facet strip text size
         # Increase facet strip text size if you use facets
@@ -197,16 +205,73 @@ scopes_by_industry <- ggplot() +
 scopes_by_industry
 
 
-ggsave("./results/figures/scopes_by_industry.pdf",
+ggsave(paste0("./results/figures/scopes_by_industry_",edition ,"_", start_year, "_", end_year ,".pdf"),,
        # "./results/figures/scopes_by_industry_log.pdf",
         plot = scopes_by_industry, width = 18, height = 6, dpi = 300)
 
 
-scopes_industry |>
-  pivot_wider(names_from="industry",
-              values_from=2) |>
+scope_comparision <- scopes_industry |>
   rename(year = time_period) |>
-  filter(year == "2010" | year =="2022") %>%
+  filter(year == end_year| year == start_year) |>
+   pivot_wider(names_from="year",
+               values_from="value") |>
+  mutate("change between years in %"= (across(4) - across(3)) / across(3)) |>
+  group_by(industry) |>
+  mutate("2010 (relative)" = across(2)/sum(across(2)),
+         "2021 (relative)" = across(3)/sum(across(3)))|>
+  ungroup()
+
+# Table 4:
+scope_comparision|>
   xtable()
 
+final_emissions <- fig_frame_industry |>
+  rename(year = time_period) |>
+  filter(year == end_year| year == start_year) |>
+  # pivot_wider(names_from="year",
+  #             values_from="embodied_emissions") |>
+  filter(industry != "mediated via other industries")  |>
+  mutate(type = "final demand")
+
+
+embodied_emissions <- scope_comparision |>
+  group_by(industry) |>
+  summarise("2010" = sum(across(2)),
+         "2021" = sum(across(3)))|>
+  ungroup() |>
+  mutate(type = "total demand") |>
+  pivot_longer(cols = -c(industry, type),
+               values_to = "embodied_emissions",
+               names_to = "year")
+
+
+
+embodied_emissions <- scope_comparision |>
+  group_by(industry) |>
+  summarise("2010" = sum(across(2)),
+            "2021" = sum(across(3)))|>
+  ungroup() |>
+  mutate(type = "total demand") |>
+  pivot_longer(cols = -c(industry, type),
+               values_to = "embodied_emissions",
+               names_to = "year")
+
+
+total_emissions <- final_emissions |>
+  rbind(embodied_emissions) |>
+  pivot_wider(names_from = type,
+              values_from = embodied_emissions) |>
+  mutate(mediated =   `total demand` - `final demand`) |>
+  select(year, industry, mediated) |>
+  # Group by industry and filter for 2010 and 2021
+  group_by(industry) |>
+  mutate("change in %" = (mediated[year == "2021"] / mediated[year == "2010"]) - 1)   |>
+  ungroup() |>
+  pivot_wider(names_from = year,
+              values_from = mediated) |>
+  arrange(desc(industry)) |>
+  select(1,3,4,2)# Sort in descending order of industry
+
+
+total_emissions |> xtable()
 

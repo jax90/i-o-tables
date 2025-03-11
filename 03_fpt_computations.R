@@ -1,14 +1,16 @@
 #main path <- "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23"
 #main_path <- "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23"
-
-
 values_agg = format_iot(folder = if(user =="jax"){paste0(main_path, "/data/values")}else{main_path},
                         exdir = if(user =="jax"){paste0(main_path, "/data/values")}else{main_path},
-                        update = F)
+                        update = T,
+                        edition = edition)
+
+
 
 emissions <- format_emissions(folder = if(user =="jax"){paste0(main_path, "/data/emissions")}else{main_path},
                               exdir =if(user =="jax"){paste0(main_path, "/data/emissions")}else{main_path},
-                              update = F) %>%
+                              update = T,
+                              edition = edition) %>%
   unite(resource_id, ref_area,industry, sep = "_") |>
   group_by(resource_id,time_period) %>%
   summarise(direct_emissions = sum(obs_value,na.rm = T)) %>%
@@ -225,7 +227,7 @@ eeio_analysis = function(values_agg,
                          emissions,
                          file_name,
                          exdir,
-                         basis = 2022,
+                         basis = as.interger(end_year),
                          update = F,
                          verbose = T)
 {
@@ -299,10 +301,10 @@ eeio_analysis = function(values_agg,
 
 eeio_analysis(values_agg = values_agg,
               emissions = emissions,
-              basis = 2022,
-              file_name = "footprint_results_23_data.parquet",
-              exdir = if(user =="jax"){paste0(main_path, "/data")}else(main_path),
-              update = T)
+              basis = as.integer(end_year),
+              file_name = paste0("footprint_results_", edition, "_data.parquet"),
+              exdir = if(user =="jax"){paste0(main_path, "/data")}else{main_path},
+              update =T)
 
 
 

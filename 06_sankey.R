@@ -8,6 +8,9 @@ options(scipen = 100, digits = 4)
 
 emissions <- read_parquet( if(user =="jax"){paste0(main_path, "/data/footprint_results_23_data.parquet")}
                            else{main_path}) |>
+  mutate(year = as.integer(time_period)) |>
+  filter(year >= as.integer(start_year)) |>
+  select(-year) |>
   separate(resource_id,into = c('country',"industry"),extra = 'merge',sep = "_") |>
   rename(Y_total = total_final_demand) %>%
   mutate(emissions_per_output = direct_emissions/total_output)
@@ -15,7 +18,7 @@ emissions <- read_parquet( if(user =="jax"){paste0(main_path, "/data/footprint_r
 
 df <-
   emissions |>
-  filter(time_period == "2022") |>
+  filter(time_period == end_year) |>
   select(industry, country,  matches("Intwght_"),emissions_per_output, Y_total) |>
   mutate(across(matches("Intwght_"), ~ .x * emissions_per_output)) |>
   select(-emissions_per_output)  |>
@@ -42,7 +45,7 @@ transfer_of_emissions <- L_adjusted %*% Y
 
 colnames(transfer_of_emissions) <- rel_industries
 
-sankey_prepare <- transfer_of_emissions |>  as.tibble() |>
+sankey_prepare <- transfer_of_emissions |>  as_tibble() |>
   mutate(industry_ref_area = rel_industries) |>
   pivot_longer(-industry_ref_area,
                names_to = "industry_counterpart_area",
@@ -90,31 +93,28 @@ sankey_df <- sankey_prepare |>
   ))
 
 
-demand <- emissions |> filter(time_period == "2021") |>
+demand <- emissions |> filter(time_period == end_year) |>
   unite(industry_ref_area, industry, country, sep = "_") |>
   select(industry_ref_area, matches("embodied_emissions_"))
 
-names(demand) <- gsub("embodied_emissions_P3_S13", "government", names(demand))
-names(demand) <- gsub("embodied_emissions_P3_S14", "households", names(demand))
-names(demand) <- gsub("embodied_emissions_P3_S15", "non-profit", names(demand))
-names(demand) <- gsub("embodied_emissions_P51G", "capital formation", names(demand))
-names(demand) <- gsub("embodied_emissions_P5M", "changes in inventories/ assets", names(demand))
+names(demand) <- gsub("^embodied_emissions_.+_P3_S13$", "government", names(demand))
+names(demand) <- gsub("^embodied_emissions_.+_P3_S14$", "households", names(demand))
+names(demand) <- gsub("^embodied_emissions_.+_P3_S15$", "non-profit", names(demand))
+names(demand) <- gsub("^embodied_emissions_.+_P51G$", "capital formation", names(demand))
+names(demand) <- gsub("^embodied_emissions_.+_P5M$", "changes in inventories/ assets", names(demand))
 
-demand <- demand |>  pivot_longer(-industry_ref_area,
-                                  names_to = "demand_type_counterpart_area",
+demand <- demand |>
+  pivot_longer(-industry_ref_area,
+                                  names_to = "demand_type",
                                   values_to = "weight") |>
-  separate_wider_regex(industry_ref_area,
-                       c(ref_industry = ".*", "_", ref_area = ".*")) |>
-  separate_wider_regex(demand_type_counterpart_area,
-                       c(demand_type= ".*", "_", counter_area = ".*")) |>
+  separate(industry_ref_area,into = c('ref_industry',"ref_area"),extra = 'merge',sep = "_") |>
   mutate(ref_industry = if_else(str_detect(ref_industry, "(26|61|62|63)"),
                                 "digital industries", "mediated via other industries")) |>
   group_by(ref_industry, demand_type ) |>
   summarise(
     weight = sum(weight, na.rm = TRUE ))|>
+  ungroup() |>
   rename(counter_industry = ref_industry)
-
-
 
 
 total <- sankey_df$weight |>  sum()
@@ -124,13 +124,14 @@ total <- sankey_df$weight |>  sum()
 sankey_data <- sankey_df |>
   left_join(demand, by = "counter_industry") |>
   select(ref_industry, counter_industry, demand_type, weight.x, weight.y) |>
-  rename(weight_ref_counter = weight.x, weight_counter_demand = weight.y)
+  rename(weight_ref_counter = weight.x,
+         weight_counter_demand = weight.y)
 
 pos <- position_sankey(
   v_space=0.05, order="as_is", width=0.05, align="center"
 )
 
-sankey_data |>
+sankey_figure <- sankey_data |>
   mutate(
     across(c(weight_ref_counter, weight_counter_demand), \(.x){.x/sum(.x)})
   ) |>
@@ -166,8 +167,8 @@ sankey_data |>
     stage = stage |> factor(
       levels=c("ref_industry", "counter_industry", "demand_type"),
       labels=c(
-        "direct emissions", "embodied emissions",
-        "final demand"
+        "industries producing \n direct emissions", "industries associated with \nembodied emissions",
+        "final demand where\n embodied emissions\n are transfered to"
       )
     ),
     node = fct_relevel(
@@ -175,7 +176,9 @@ sankey_data |>
     )
   ) |>
   arrange(node_size_to) |>
-  glimpse() |>
+  glimpse()
+
+sankey_figure|>
   ggplot(aes(
     x=stage, y=weight, group=node, connector=connector, edge_id=edge_id
   )) +
@@ -201,8 +204,8 @@ sankey_data |>
   )
 
 
-ggsave("results/figures/sankey_industry.pdf", width=210, height=120, units="mm")
-
+ggsave(paste0("./results/figures/sankey_industry_",edition ,"_", end_year ,".pdf"),
+       width=210, height=120, units="mm")
 
 # Europe (Schengen + GB)
 europe <- c("AT", "BE", "CY", "DE", "EE", "ES", "FI", "FR", "GR", "IE",
@@ -226,10 +229,8 @@ sankey_prepare <- transfer_of_emissions |>  as.tibble() |>
   pivot_longer(-industry_ref_area,
                names_to = "industry_counterpart_area",
                values_to = "weight_ref_counter") |>
-  separate_wider_regex(industry_ref_area,
-                       c(ref_industry = ".*", "_", ref_area = ".*")) |>
-  separate_wider_regex(industry_counterpart_area,
-                       c(counter_industry = ".*", "_", counter_area = ".*")) |>
+  separate(industry_ref_area,into = c('ref_area',"ref_industry"),extra = 'merge',sep = "_") |>
+  separate(industry_counterpart_area ,into = c("counter_area",'counter_industry'),extra = 'merge',sep = "_") |>
   mutate(
     counter = case_when(
       counter_area %in%  europe ~ "Europe (Schengen + GB)",
@@ -250,12 +251,11 @@ sankey_prepare <- transfer_of_emissions |>  as.tibble() |>
     weight_ref_counter = sum(weight_ref_counter, na.rm = TRUE ), .by = c(ref, counter)
   )
 
-
-demand <- emissions |> filter(time_period == "2021") |>
+demand <- emissions |> filter(time_period == end_year) |>
   select( country,  matches("embodied_emissions_"))
 
-names(demand) <- gsub("embodied_emissions_(P3_S13|P3_S14|P3_S15|P51G|P5M)_", "", names(demand))
-
+names(demand) <- gsub("embodied_emissions_", "", names(demand))
+names(demand) <- gsub("_(P3_S13|P3_S14|P3_S15|P51G|P5M)$", "", names(demand))
 
 demand <- demand |>  pivot_longer(-country,
                                   names_to = "demand_area",
@@ -292,7 +292,7 @@ pos <- position_sankey(
   v_space=0.05, order="as_is", width=0.05, align="center"
 )
 
-sankey_data |>
+sankey_figure <-sankey_data |>
   mutate(
     across(c(weight_ref_counter, weight_counter_demand), \(.x){.x/sum(.x)})
   ) |>
@@ -328,8 +328,8 @@ sankey_data |>
     stage = stage |> factor(
       levels=c("ref", "counter", "demand"),
       labels=c(
-        "direct emissions", "embodied emissions",
-        "final demand"
+        "countries producing \n direct emissions", "countries associated with \nembodied emissions",
+        "final demand where\n embodied emissions\n are transfered to"
       )
     ),
     node = fct_relevel(
@@ -337,7 +337,9 @@ sankey_data |>
     )
   ) |>
   arrange(node_size_to) |>
-  glimpse() |>
+  glimpse()
+
+sankey_figure |>
   ggplot(aes(
     x=stage, y=weight, group=node, connector=connector, edge_id=edge_id
   )) +
@@ -363,22 +365,18 @@ sankey_data |>
   )
 
 
-ggsave("results/figures/sankey_country.pdf", width=210, height=120, units="mm")
-
-
-
-
+ggsave(paste0("./results/figures/sankey_country_",edition ,"_", end_year, ".pdf"),
+       width=210, height=120, units="mm")
 
 df <-
   emissions |>
-  filter(time_period == "2010") |>
-  select(industry, country,  matches("Int_wght_"),emissions_per_output, Y_total) |>
-  mutate(across(matches("Int_wght_"), ~ .x * emissions_per_output)) |>
+  filter(time_period == start_year) |>
+  select(industry, country,  matches("Intwght_"),emissions_per_output, Y_total) |>
+  mutate(across(matches("Intwght_"), ~ .x * emissions_per_output)) |>
   select(-emissions_per_output)  |>
-  unite(industry_ref_area, industry, country, sep = "_")
+  unite(industry_ref_area, country, industry, sep = "_")
 
-names(df) <- gsub("^Int_wght_", "", names(df))
-
+names(df) <- gsub("^Intwght_", "", names(df))
 
 rel_industries <- intersect(colnames(df), df$industry_ref_area)
 
@@ -399,15 +397,13 @@ transfer_of_emissions <- L_adjusted %*% Y
 
 colnames(transfer_of_emissions) <- rel_industries
 
-sankey_prepare <- transfer_of_emissions |>  as.tibble() |>
+sankey_prepare <- transfer_of_emissions |>  as_tibble() |>
   mutate(industry_ref_area = rel_industries) |>
   pivot_longer(-industry_ref_area,
                names_to = "industry_counterpart_area",
                values_to = "weight") |>
-  separate_wider_regex(industry_ref_area,
-                       c(ref_industry = ".*", "_", ref_area = ".*")) |>
-  separate_wider_regex(industry_counterpart_area,
-                       c(counter_industry = ".*", "_", counter_area = ".*")) |>
+  separate(industry_ref_area,into = c('ref_area',"ref_industry"),extra = 'merge',sep = "_") %>%
+  separate(industry_counterpart_area ,into = c('counter_area',"counter_industry"),extra = 'merge',sep = "_") |>
   group_by(ref_industry, counter_industry ) |>
   summarise(
     weight = sum(weight, na.rm = TRUE )
@@ -449,31 +445,28 @@ sankey_df <- sankey_prepare |>
   ))
 
 
-demand <- emissions |> filter(time_period == "2010") |>
+demand <- emissions |> filter(time_period == end_year) |>
   unite(industry_ref_area, industry, country, sep = "_") |>
   select(industry_ref_area, matches("embodied_emissions_"))
 
-names(demand) <- gsub("embodied_emissions_P3_S13", "government", names(demand))
-names(demand) <- gsub("embodied_emissions_P3_S14", "households", names(demand))
-names(demand) <- gsub("embodied_emissions_P3_S15", "non-profit", names(demand))
-names(demand) <- gsub("embodied_emissions_P51G", "capital formation", names(demand))
-names(demand) <- gsub("embodied_emissions_P5M", "changes in inventories/ assets", names(demand))
+names(demand) <- gsub("^embodied_emissions_.+_P3_S13$", "government", names(demand))
+names(demand) <- gsub("^embodied_emissions_.+_P3_S14$", "households", names(demand))
+names(demand) <- gsub("^embodied_emissions_.+_P3_S15$", "non-profit", names(demand))
+names(demand) <- gsub("^embodied_emissions_.+_P51G$", "capital formation", names(demand))
+names(demand) <- gsub("^embodied_emissions_.+_P5M$", "changes in inventories/ assets", names(demand))
 
-demand <- demand |>  pivot_longer(-industry_ref_area,
-                                  names_to = "demand_type_counterpart_area",
-                                  values_to = "weight") |>
-  separate_wider_regex(industry_ref_area,
-                       c(ref_industry = ".*", "_", ref_area = ".*")) |>
-  separate_wider_regex(demand_type_counterpart_area,
-                       c(demand_type= ".*", "_", counter_area = ".*")) |>
+demand <- demand |>
+  pivot_longer(-industry_ref_area,
+               names_to = "demand_type",
+               values_to = "weight") |>
+  separate(industry_ref_area,into = c('ref_industry',"ref_area"),extra = 'merge',sep = "_") |>
   mutate(ref_industry = if_else(str_detect(ref_industry, "(26|61|62|63)"),
                                 "digital industries", "mediated via other industries")) |>
   group_by(ref_industry, demand_type ) |>
   summarise(
     weight = sum(weight, na.rm = TRUE ))|>
+  ungroup() |>
   rename(counter_industry = ref_industry)
-
-
 
 
 total <- sankey_df$weight |>  sum()
@@ -483,13 +476,14 @@ total <- sankey_df$weight |>  sum()
 sankey_data <- sankey_df |>
   left_join(demand, by = "counter_industry") |>
   select(ref_industry, counter_industry, demand_type, weight.x, weight.y) |>
-  rename(weight_ref_counter = weight.x, weight_counter_demand = weight.y)
+  rename(weight_ref_counter = weight.x,
+         weight_counter_demand = weight.y)
 
 pos <- position_sankey(
   v_space=0.05, order="as_is", width=0.05, align="center"
 )
 
-sankey_data |>
+sankey_figure <- sankey_data |>
   mutate(
     across(c(weight_ref_counter, weight_counter_demand), \(.x){.x/sum(.x)})
   ) |>
@@ -525,8 +519,8 @@ sankey_data |>
     stage = stage |> factor(
       levels=c("ref_industry", "counter_industry", "demand_type"),
       labels=c(
-        "direct emissions", "embodied emissions",
-        "final demand"
+        "industries producing \n direct emissions", "industries associated with \nembodied emissions",
+        "final demand where\n embodied emissions\n are transfered to"
       )
     ),
     node = fct_relevel(
@@ -534,7 +528,9 @@ sankey_data |>
     )
   ) |>
   arrange(node_size_to) |>
-  glimpse() |>
+  glimpse()
+
+sankey_figure|>
   ggplot(aes(
     x=stage, y=weight, group=node, connector=connector, edge_id=edge_id
   )) +
@@ -560,35 +556,15 @@ sankey_data |>
   )
 
 
-ggsave("results/figures/sankey_industry_2010.pdf", width=210, height=120, units="mm")
-
-
-# Europe (Schengen + GB)
-europe <- c("AT", "BE", "CY", "DE", "EE", "ES", "FI", "FR", "GR", "IE",
-            "IT", "LT", "LU", "LV", "MT", "NL", "PT", "SI", "SK",
-            "BG", "CZ", "DK", "HR", "HU", "PL", "RO", "SE",
-            "GB", "CH", "NO")
-# United States
-us <- c("US")
-# Americas (Excluding US)
-americas_ex_us <- c("CA", "MX", "AR", "BR")
-# Asia-Pacific
-asia_pacific <- c("JP", "KR", "IN", "ID", "AU")
-# China
-china <- c("CN")
-# Others
-others <- c("RU", "TR", "SA", "ZA", "FIGW1")
-
+ggsave(paste0("results/figures/sankey_industry_",start_year,".pdf"), width=210, height=120, units="mm")
 
 sankey_prepare <- transfer_of_emissions |>  as.tibble() |>
   mutate(industry_ref_area = rel_industries) |>
   pivot_longer(-industry_ref_area,
                names_to = "industry_counterpart_area",
                values_to = "weight_ref_counter") |>
-  separate_wider_regex(industry_ref_area,
-                       c(ref_industry = ".*", "_", ref_area = ".*")) |>
-  separate_wider_regex(industry_counterpart_area,
-                       c(counter_industry = ".*", "_", counter_area = ".*")) |>
+  separate(industry_ref_area,into = c('ref_area',"ref_industry"),extra = 'merge',sep = "_") |>
+  separate(industry_counterpart_area ,into = c("counter_area",'counter_industry'),extra = 'merge',sep = "_") |>
   mutate(
     counter = case_when(
       counter_area %in%  europe ~ "Europe (Schengen + GB)",
@@ -609,12 +585,11 @@ sankey_prepare <- transfer_of_emissions |>  as.tibble() |>
     weight_ref_counter = sum(weight_ref_counter, na.rm = TRUE ), .by = c(ref, counter)
   )
 
-
-demand <- emissions |> filter(time_period == "2010") |>
+demand <- emissions |> filter(time_period == end_year) |>
   select( country,  matches("embodied_emissions_"))
 
-names(demand) <- gsub("embodied_emissions_(P3_S13|P3_S14|P3_S15|P51G|P5M)_", "", names(demand))
-
+names(demand) <- gsub("embodied_emissions_", "", names(demand))
+names(demand) <- gsub("_(P3_S13|P3_S14|P3_S15|P51G|P5M)$", "", names(demand))
 
 demand <- demand |>  pivot_longer(-country,
                                   names_to = "demand_area",
@@ -651,7 +626,7 @@ pos <- position_sankey(
   v_space=0.05, order="as_is", width=0.05, align="center"
 )
 
-sankey_data |>
+sankey_figure <-sankey_data |>
   mutate(
     across(c(weight_ref_counter, weight_counter_demand), \(.x){.x/sum(.x)})
   ) |>
@@ -687,8 +662,8 @@ sankey_data |>
     stage = stage |> factor(
       levels=c("ref", "counter", "demand"),
       labels=c(
-        "direct emissions", "embodied emissions",
-        "final demand"
+        "countries producing \n direct emissions", "countries associated with \nembodied emissions",
+        "final demand where\n embodied emissions\n are transfered to"
       )
     ),
     node = fct_relevel(
@@ -696,7 +671,9 @@ sankey_data |>
     )
   ) |>
   arrange(node_size_to) |>
-  glimpse() |>
+  glimpse()
+
+sankey_figure |>
   ggplot(aes(
     x=stage, y=weight, group=node, connector=connector, edge_id=edge_id
   )) +
@@ -722,7 +699,7 @@ sankey_data |>
   )
 
 
-ggsave("results/figures/sankey_country_2010.pdf", width=210, height=120, units="mm")
+ggsave(paste0("results/figures/sankey_country_",start_year,".pdf"), width=210, height=120, units="mm")
 #
 #
 #

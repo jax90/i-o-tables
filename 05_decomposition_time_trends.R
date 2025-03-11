@@ -1,19 +1,22 @@
 
 options(scipen = 100, digits = 4)
 
-emissions <- read_parquet( if(user =="jax"){paste0(main_path, "/data/footprint_results_23_data.parquet")}
+emissions <- read_parquet( if(user =="jax"){paste0(main_path, "/data/footprint_results_",edition,"_data.parquet")}
                            else{main_path}) |>
+  mutate(year = as.integer(time_period)) |>
+  filter(year >= as.integer(start_year)) |>
+  filter(year <= as.integer(end_year)) |>
+  select(-year) |>
   separate(resource_id,into = c('country',"industry"),extra = 'merge',sep = "_") %>%
   rename(Y_total = total_final_demand) %>%
   mutate(emissions_per_output = direct_emissions/total_output)
-
 
 # embodied emissions
 embodied_all <- emissions |>
   mutate(embodied = rowSums(emissions |> select(direct_emissions), na.rm = TRUE)) |>
   summarise(embodied = sum(embodied, na.rm = TRUE), .by = c(time_period)) |>
   drop_na() |>
-  mutate(embodied = embodied/embodied[time_period =="2010"]) |>
+  mutate(embodied = embodied/embodied[time_period ==start_year]) |>
   mutate(ICT = "absolute")
 
 embodied_ICT <- emissions |>
@@ -27,7 +30,7 @@ embodied_ICT <- emissions |>
   summarise(embodied = sum(embodied, na.rm = TRUE), .by = c(time_period, ICT)) |>
   drop_na() |>
   group_by(ICT) |>
-  mutate(embodied = embodied/embodied[time_period =="2010"]) |>
+  mutate(embodied = embodied/embodied[time_period ==start_year]) |>
   ungroup()
 
 decomposition <-bind_rows(embodied_all, embodied_ICT)
@@ -36,7 +39,7 @@ demand_all <- emissions |>
   select(time_period, Y_total) |>
   summarise(Y = sum(Y_total, na.rm = TRUE), .by = c(time_period)) |>
   drop_na() |>
-  mutate(Y = Y/Y[time_period =="2010"]) |>
+  mutate(Y = Y/Y[time_period == start_year]) |>
   mutate(ICT = "absolute")
 
 demand_ICT <- emissions |>
@@ -49,7 +52,7 @@ demand_ICT <- emissions |>
   summarise(Y = sum(Y_total, na.rm = TRUE), .by = c(time_period, ICT)) |>
   drop_na() |>
   group_by(ICT) |>
-  mutate(Y = Y/Y[time_period =="2010"]) |>
+  mutate(Y = Y/Y[time_period ==start_year]) |>
   ungroup()
 
 demand <-bind_rows(demand_all, demand_ICT)
@@ -75,7 +78,7 @@ weights_all <-emissions |>
             by = c("time_period", "industry", "country")) |>
   drop_na() |>
   summarise(mean_wght = weighted.mean(x =mean_wght , w = Y_total, na.rm = TRUE), .by = c(time_period)) |>
-  mutate(mean_wght = mean_wght/mean_wght[time_period =="2010"]) |>
+  mutate(mean_wght = mean_wght/mean_wght[time_period ==start_year]) |>
   mutate(ICT = "absolute")
 
 weights_ICT <- emissions |>
@@ -100,7 +103,7 @@ weights_ICT <- emissions |>
   summarise(mean_wght = weighted.mean(x =Intwght , w = Y_total, na.rm = TRUE), .by = c(time_period, ICT)) |>
   drop_na() |>
   group_by(ICT) |>
-  mutate(mean_wght = mean_wght/mean_wght[time_period =="2010"]) |>
+  mutate(mean_wght = mean_wght/mean_wght[time_period ==start_year]) |>
   ungroup()
 
 
@@ -114,7 +117,7 @@ intensity_all <- emissions |>
   summarise(across(everything(), \(x){sum(x, na.rm=TRUE)}), .by = time_period) |>
   drop_na() |>
   mutate(emission_intensity = direct_emissions/total_output) |>
-  mutate(emission_intensity = emission_intensity/emission_intensity[time_period =="2010"]) |>
+  mutate(emission_intensity = emission_intensity/emission_intensity[time_period ==start_year]) |>
   mutate(ICT = "absolute") |>
   select(-direct_emissions,- total_output)
 
@@ -150,7 +153,7 @@ intensity_ICT <- intensity_ICT |>
 
 intensity_ICT <- intensity_ICT |>
   group_by(ICT) |>
-  mutate(emission_intensity = emission_intensity/emission_intensity[time_period =="2010"]) |>
+  mutate(emission_intensity = emission_intensity/emission_intensity[time_period ==start_year]) |>
   ungroup()
 
 intensity <-bind_rows(intensity_all, intensity_ICT)
@@ -199,7 +202,7 @@ decomposition_changes <- decomposition_final |>
     "IT services" = "#2367ae",
     "total economy" = "black"  # Assign color for "total economy's emissions" if needed
   )) +
-  ggtitle("change in % (baseline 2010)") +
+  ggtitle(paste0("change in % (baseline ",start_year,")")) +
   labs(x = "year", y = "") +
   theme_tufte() +
   theme(
@@ -215,6 +218,6 @@ decomposition_changes <- decomposition_final |>
 decomposition_changes
 
 
-ggsave("./results/figures/decomposition_changes_deflat.pdf",
+ggsave(paste0("./results/figures/decomposition_changes_deflat_",edition ,"_", start_year, "_",end_year ,".pdf"),
        plot = decomposition_changes, width = 8, height = 6, dpi = 300)
 
