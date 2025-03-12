@@ -445,7 +445,7 @@ sankey_df <- sankey_prepare |>
   ))
 
 
-demand <- emissions |> filter(time_period == end_year) |>
+demand <- emissions |> filter(time_period == start_year) |>
   unite(industry_ref_area, industry, country, sep = "_") |>
   select(industry_ref_area, matches("embodied_emissions_"))
 
@@ -585,7 +585,7 @@ sankey_prepare <- transfer_of_emissions |>  as.tibble() |>
     weight_ref_counter = sum(weight_ref_counter, na.rm = TRUE ), .by = c(ref, counter)
   )
 
-demand <- emissions |> filter(time_period == end_year) |>
+demand <- emissions |> filter(time_period == start_year) |>
   select( country,  matches("embodied_emissions_"))
 
 names(demand) <- gsub("embodied_emissions_", "", names(demand))
@@ -700,98 +700,4 @@ sankey_figure |>
 
 
 ggsave(paste0("results/figures/sankey_country_",start_year,".pdf"), width=210, height=120, units="mm")
-#
-#
-#
-# setwd("~/Downloads/sankey_test/")
-# # pak::pkg_install("davidsjoberg/ggsankey")
-# library(tidyverse)
-#
-# library(ggsankey) font_fam <- "PT Serif" sysfonts::font_add_google(font_fam) showtext::showtext_auto() sankey_data <- read_rds("data.rds") sankey_data |> pivot_longer(c(ref_industry, counter_industry, demand_type)) pos <- position_sankey( v_space=0.05, order="as_is", width=0.05, align="center" ) sankey_data |> mutate( across(c(weight_ref_counter, weight_counter_demand), \(.x){.x/sum(.x)}) ) |> pivot_stages_longer( stages_from=c("ref_industry", "counter_industry", "demand_type"), values_from=c("weight_ref_counter", "weight_counter_demand") ) |> mutate( weight = case_when( stage[connector == "from"] == "ref_industry" ~ weight_ref_counter, stage[connector == "from"] == "counter_industry" ~ weight_counter_demand, .default=NA_real_ ), .by=edge_id ) |> mutate( node_size = c(sum(weight[connector == "from"]), sum(weight[connector == "to"])) |> discard(`==`, 0) |> first(), .by=node ) |> mutate( node_pretty = str_remove_all(node, " *\\(e\\.g\\..+?\\)"), node_label = str_c( node_pretty, ": ", scales::label_percent(accuracy=0.1)(node_size), " " ), stage = stage |> case_match( "ref_industry" ~ "direct emissions", "counter_industry" ~ "embodied emissions of final demand", "demand_type" ~ "type of final demand" ) ) |> mutate( node = fct_relevel( fct_reorder(node, node_size), "other industries", after=0 ) ) |> arrange(weight) |> glimpse() |> ggplot(aes( x=stage, y=weight, group=node, connector=connector, edge_id=edge_id )) + geom_sankeyedge(aes(fill=node), position=pos, alpha=0.6) + geom_sankeynode(fill="gray40", position=pos) + geom_text( aes(label=node_label), stat="sankeynode", position=pos, size=2.5, family=font_fam, lineheight = 0.5, hjust=1 ) + scale_fill_manual( values=c( "#555283", "#855C75", "#D9AF6B", "#AF6458", "#736F4C", "#526A83", "#625377", "#68855C", "#9C9C5E", "#A06177", "#8C785D", "#467378", "#7C7C7C" ) ) + scale_x_discrete(expand=expansion(c(0.35, 0.08))) + theme_void(base_family=font_fam) + theme( legend.position="none", plot.margin=unit(c(0, 2, 0, 2), "mm"), axis.text.x=element_text(size=8) ) ggsave("plot.pdf", width=210, height=120, units="mm")
-#
-#
-# df <- sankey_data |>
-#   make_long(ref_industry, counter_industry, demand_type, value = weight_ref_counter) |>
-#   filter(x == "ref_industry") |>
-#   bind_rows(
-#     sankey_data |> make_long(ref_industry, counter_industry, demand_type, value = weight_counter_demand) |>
-#       filter(x != "ref_industry")
-#   ) |>
-#   distinct() |>
-#   mutate(x = recode(x,
-#                     "ref_industry" = "direct emissions",
-#                     "counter_industry" = "embodied emissions of final demand",
-#                     "demand_type" = "type of final demand")) |>
-#   mutate(next_x = recode(next_x,
-#                          "ref_industry" = "direct emissions",
-#                          "counter_industry" = "embodied emissions of final demand",
-#                          "demand_type" = "type of final demand")) |>
-#   mutate(label =
-#       str_c("      ", node, ": ", scales::label_percent(accuracy=0.1)(sum(value) / total), "      "), .by = node
-#   ) |>
-#   mutate(
-#     label_hjust = x |> case_match(
-#       "direct emissions" ~ 1,
-#       "type of final demand" ~ 0,
-#       .default = 0.5
-#     )
-#   ) |>
-#   arrange(value)
-#
-#
-#
-#
-# #  mutate(next_node  = str_c(next_node , ": ", scales::label_percent(accuracy=0.01)(value/(2140519 *2))))
-#
-#
-# # Create the Sankey diagram
-# ggplot(df , aes(x = x,
-#                next_x = next_x,
-#                node = node,
-#                next_node = next_node,
-#                fill = factor(node),
-#                value = value
-#                )) +
-#   geom_sankey(flow.alpha = 0.7, node.color = 1) +
-#   geom_sankey_text(
-#     aes(label = if_else(x != "embodied emissions of final demand",
-#                         label,
-#                         ""), hjust=label_hjust), family="serif", size=3
-#   ) +
-#   geom_sankey_label(
-#     aes(label = if_else(x == "embodied emissions of final demand",
-#                         label,
-#                         ""),
-#
-#         alpha = ifelse(x == "embodied emissions of final demand", 1, 0)),
-#
-#     family="serif",
-#     size=3,
-#     label.size = 0,
-#     color = "white"
-#    # fill = "white"
-# ) +
-#   scale_fill_viridis_d() +
-#   scale_x_discrete(expand=expansion(0.4)) +
-#   theme_sankey(base_size = 16) +
-#   guides(fill = guide_legend(title = "")) +
-#   theme(
-#     legend.position = "none",
-#     axis.title = element_blank(),
-#     text = element_text(family = "serif", size = 10),
-#     # plot.margin= margin(0, 100, 0, 100),
-#
-#     # Adjust the size as needed
-#   )
-#
-#   ggsave("sankey.pdf", width=30, height=10, units="cm")
-#
-#
-#    #|> modify_if(
-#   #     node == "digital share in other industries",
-#   #     \(.x){str_c(.x, "\n\n\n\n\n\n")}
-#   #   ) |> modify_if(
-#   #     node == "digital industries",
-#   #     \(.x){str_c( .x, "\n\n\n\n\n\n\n")}
-#   #   ),
 #
