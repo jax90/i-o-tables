@@ -7,29 +7,97 @@ lapply(lapply(c('00_aggregate_CO2_emission_files.R',
 
 values_agg = format_iot(folder = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
                         exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
-                        update = F) %>%
+                        update = T) %>%
   filter(rowLabels %in% colnames(.))
 
+
+# price_index = get_value_added_price_index(2020,time_serie = 2010:2022,update = T) |>
+#   rename(deflator = value,
+#          ref_area = country,
+#          time_period = year) |>
+#   select(-base)
+#
+#
+# ICT_AGGS = format_iot(folder = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
+#                 exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
+#                 update = F) %>%
+#   separate(rowLabels,into = c('ref_area','industry'),sep = "_",remove = F,extra = 'merge') %>%
+#   full_join(price_index, by = c("ref_area" ,"industry" ,"time_period")) |>
+#   mutate(across(where(is.numeric), \(.x){.x*deflator} )) |>
+#   select(-c("ref_area","industry","deflator"))
+#
+# ICT_AGGS_IC = ICT_AGGS %>%
+#   select(rowLabels,time_period,matches("26|61|62|63")) %>%
+#   pivot_longer(-c(1:2),names_to = "use_id") %>%
+#   mutate(rowLabels = case_when(rowLabels %in% colnames(values_agg) ~ "IC",
+#                                T ~ rowLabels)) %>%
+#   group_by(use_id,rowLabels,time_period) %>%
+#   summarise(value = sum(value))
+#
+# ICT_AGGS24 = format_iot(folder = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
+#                       exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
+#                       update = F,
+#                       version = 'online') %>%
+#   separate(rowLabels,into = c('ref_area','industry'),sep = "_",remove = F,extra = 'merge') %>%
+#   full_join(price_index, by = c("ref_area" ,"industry" ,"time_period")) |>
+#   mutate(across(where(is.numeric), \(.x){.x*deflator} )) |>
+#   select(-c("ref_area","industry","deflator"))
+#
+# ICT_AGGS24_IC = ICT_AGGS24 %>%
+#   select(rowLabels,time_period,matches("26|61|62|63")) %>%
+#   pivot_longer(-c(1:2),names_to = "use_id") %>%
+#   mutate(rowLabels = case_when(rowLabels %in% colnames(values_agg) ~ "IC",
+#                                T ~ rowLabels)) %>%
+#   group_by(use_id,rowLabels,time_period) %>%
+#   summarise(value = sum(value))
+#
+# PRD23 = ICT_AGGS %>% filter(grepl("62|63",rowLabels)) %>% reframe(rowLabels,time_period,value = rowSums(.[,-which(colnames(.) %in% c("rowLabels","time_period"))])) %>%
+#   separate(rowLabels,c("country","industry"),sep = "_",extra = "merge")
+#
+# PRD24 = ICT_AGGS24 %>% filter(grepl("62|63",rowLabels)) %>% reframe(rowLabels,time_period,value = rowSums(.[,-which(colnames(.) %in% c("rowLabels","time_period"))])) %>%
+#   separate(rowLabels,c("country","industry"),sep = "_",extra = "merge")
+#
+# PRD23 %>% group_by(time_period) %>% summarise(value = sum(value))
+#
+# PRD24 %>% group_by(time_period) %>% summarise(value = sum(value))
+#
+#
+# ggplot(PRD24,aes(x = time_period,y = value,group = country)) + geom_line() + geom_line(aes(x = time_period,y = mean(value)),color = 'red', size = 2)
+#
+# ICT_AGGS %>%
+#   separate(use_id,c("country","industry"),"_",extra = 'merge') %>%
+#   group_by(industry,rowLabels,time_period) %>%
+#   summarise(value = sum(value,na.rm=T)) %>% View()
+#
+# ICT_AGGS24 %>%
+#   separate(use_id,c("country","industry"),"_",extra = 'merge') %>%
+#   group_by(industry,rowLabels,time_period) %>%
+#   summarise(value = sum(value,na.rm=T)) %>% View()
+
+
 emissions <- format_emissions(exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
-                              update = F) %>%
+                              version = 'online',
+                              update = T) %>%
   unite(resource_id, ref_area,industry, sep = "_") |>
+  filter(resource_id %in% values_agg$rowLabels) %>%
   group_by(resource_id,time_period) %>%
   summarise(direct_emissions = sum(obs_value,na.rm = T)) %>%
   mutate(time_period = as.character(time_period)) %>%
   ungroup()
 
 
-X_time_serie = data.frame(value = rowSums(values_agg %>% select(!c(time_period,rowLabels)),na.rm=T),
-                          values_agg %>% select(c(time_period,rowLabels)))
 
-emissions_bis =  format_emissions(exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
-                                  update = F,
-                                  version = 'online') %>%
-  unite(resource_id, ref_area,industry, sep = "_") %>%
-  mutate(output = X_time_serie$value[match(paste0(time_period,resource_id),
-                                           paste0(X_time_serie$time_period,X_time_serie$rowLabels))],
-         intens = obs_value / output) %>%
-  filter(!is.na(output))
+# X_time_serie = data.frame(value = rowSums(values_agg %>% select(!c(time_period,rowLabels)),na.rm=T),
+#                           values_agg %>% select(c(time_period,rowLabels)))
+#
+# emissions_bis =  format_emissions(exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
+#                                   update = F,
+#                                   version = 'online') %>%
+#   unite(resource_id, ref_area,industry, sep = "_") %>%
+#   mutate(output = X_time_serie$value[match(paste0(time_period,resource_id),
+#                                            paste0(X_time_serie$time_period,X_time_serie$rowLabels))],
+#          intens = obs_value / output) %>%
+#   filter(!is.na(output))
 
 eeio_computations = function(input_output,
                              emissions,
@@ -243,13 +311,23 @@ eeio_analysis = function(values_agg,
   return(sto_results)
 }
 
-# eeio_analysis(values_agg = values_agg,
-#               emissions = emissions,
-#               basis = 2021,
-#               file_name = "footprint_results_23_data.parquet",
-#               exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
-#               update = T)
+eeio_analysis(values_agg = values_agg,
+              emissions = emissions,
+              basis = 2021,
+              file_name = "footprint_results_23_data.parquet",
+              exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
+              update = T)
 
+values_agg = format_iot(folder = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
+                        exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
+                        version = 'online') %>%
+  filter(rowLabels %in% colnames(.))
 
+eeio_analysis(values_agg = values_agg,
+              emissions = emissions,
+              basis = 2021,
+              file_name = "footprint_results_24_data.parquet",
+              exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
+              update = T)
 
 

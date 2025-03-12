@@ -437,7 +437,7 @@ dt = read.csv("C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed
   ) %>%
   mutate(paper = 'Wilting (2012)') %>%
   rbind(
-    read.csv("C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23/MC Analysis/Wood-Lenzen/mc_resultsinteractions.csv",sep = ";",header = T,row.names = NULL,check.names = F) %>%
+    read.csv("C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23/MC Analysis/Wood-Lenzen/MC_REV/mc_resultsinteractions.csv",sep = ";",header = T,row.names = NULL,check.names = F) %>%
       filter(!is.na(`Distributed footprint`)) %>%
       mutate(Simulation = 'MRIOT') %>%
       rbind(

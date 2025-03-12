@@ -26,7 +26,7 @@ lapply(x,library,character.only=T)
 
 options(scipen = 100, digits = 4)
 
-emissions <- read_parquet("C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23/footprint_results_23_data.parquet") |>
+emissions <- read_parquet("C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23/footprint_results_24_data.parquet") |>
   separate(resource_id,into = c('country',"industry"),extra = 'merge',sep = "_")
 
 df <- emissions |>
