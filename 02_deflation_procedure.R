@@ -1,10 +1,10 @@
-x = c('dplyr','tidyr','tibble','curl','stringr','ggplot2','eurostat','xml2','rvest','data.table','arrow','countrycode','here')
+x = c('dplyr','tidyr','tibble','curl','stringr','ggplot2','eurostat','xml2','rvest','data.table','arrow','countrycode','here','readxl')
 
 lapply(x,library,character.only = T)
 
 source(here("utils.R"))
 
-get_value_added_price_index = function(base,time_serie = 2010:2021,verbose = T,update = F)
+get_value_added_price_index = function(base,time_serie = 2010:2022,verbose = T,update = F)
 {
 
   if(!update)
@@ -22,19 +22,23 @@ get_value_added_price_index = function(base,time_serie = 2010:2021,verbose = T,u
 
   if(verbose) print('Downloading UN current and constant VA data...')
 
-link_un_price_data_constant = "http://data.un.org/Handlers/DownloadHandler.ashx?DataFilter=group_code:205;fiscal_year:2010,2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023&DataMartId=SNA&Format=csv&c=2,3,4,6,7,8,9,10,11,12,13,14&s=_cr_engNameOrderBy:asc,fiscal_year:desc,_grIt_code:asc"
+# link_un_price_data_constant = "http://data.un.org/Handlers/DownloadHandler.ashx?DataFilter=group_code:204;fiscal_year:2010,2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023&DataMartId=SNA&Format=csv&c=2,3,4,6,7,8,9,10,11,12,13,14&s=_cr_engNameOrderBy:asc,fiscal_year:desc,_grIt_code:asc"
+#
+# zip_file = curl_download(link_un_price_data_constant,tempfile(fileext = '.zip'))
+#
+# unzip_file = unzip(zip_file,exdir = tempdir())
 
-zip_file = curl_download(link_un_price_data_constant,tempfile())
-
-unzip_file = unzip(zip_file,exdir = tempdir())
+unzip_file = here("price_data/UNdata_Export_Constant.csv")
 
 un_price_data_constant = read.csv(unzip_file,check.names = F)
 
-link_un_price_data_current = "http://data.un.org/Handlers/DownloadHandler.ashx?DataFilter=group_code:204;fiscal_year:2010,2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023&DataMartId=SNA&Format=csv&c=2,3,4,6,7,8,9,10,11,12,13&s=_cr_engNameOrderBy:asc,fiscal_year:desc,_grIt_code:asc"
+# link_un_price_data_current = "http://data.un.org/Handlers/DownloadHandler.ashx?DataFilter=group_code:205;fiscal_year:2010,2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023&DataMartId=SNA&Format=csv&c=2,3,4,6,7,8,9,10,11,12,13,14&s=_cr_engNameOrderBy:asc,fiscal_year:desc,_grIt_code:asc"
+#
+# zip_file = curl_download(link_un_price_data_current,tempfile())
+#
+# unzip_file = unzip(zip_file,exdir = tempdir())
 
-zip_file = curl_download(link_un_price_data_current,tempfile())
-
-unzip_file = unzip(zip_file,exdir = tempdir())
+unzip_file =  here("price_data/UNdata_Export_Current.csv")
 
 un_price_data_current = read.csv(unzip_file,check.names = F)
 
@@ -138,6 +142,7 @@ formatted_rates = formatted_indexes %>%
 
 
 figaro_indexes = empty_figaro_df %>%
+  as.data.frame() %>%
   mutate(code1 = substr(industry,1,1),
          code2 = case_when(substr(industry,1,1) %in% c('B','C','D','E') ~ 'B+C+D+E',
                            substr(industry,1,1) %in% c('G','H','I') ~ 'G+H+I',
@@ -163,10 +168,164 @@ for(i in as.character(time_serie))
                                                      formatted_indexes$id)]
 }
 
+####FETCH AND FORMAT EUROSTAT PPI data
+
+if(verbose) print("Fetching and formatting additional PPI data into the price table : Eurostat, Chinese NBS and US BLS")
+
+eu_ppi = read.csv("https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/sts_inpp_a/A.PRC_PRR.B+C10-C12+C13-C15+C16+C17+C18+C19+C20+C21+C22+C23+C24+C25+C26+C27+C28+C29+C30+C31_C32+C33+D+E36.NSA.I21.?format=SDMX-CSV&startPeriod=2010") %>%
+  mutate(FIGARO = case_when(nace_r2 == "C10-C12" ~ "C10T12",
+                            nace_r2 == "C13-C15" ~ "C13T15",
+                            nace_r2 == "D" ~ "D35",
+                            T ~ nace_r2)) %>%
+  group_by(country = geo, industry = FIGARO) %>%
+  filter(base %in% TIME_PERIOD) %>%
+  reframe(value = OBS_VALUE / OBS_VALUE[TIME_PERIOD == base],
+          year = TIME_PERIOD)
+
+eu_sppi = read.csv("https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/sts_sepp_a/A.PRC_PRR+PRC_PRR_B2B.H-N_STS+H49+H50+H51+H52+H53+I+J+J58+J59+J60+J61+J62_J63+L+M69_M702+M71+M73+M74+N77+N78+N79+N80+N81+N82.NSA.I21+I15+I10+PCH_SM.?format=SDMX-CSV&startPeriod=2010") %>%
+  mutate(FIGARO = case_when(nace_r2 %in% c("J59","J60") ~ "J59_60",
+                            nace_r2 == "J62_J63" ~ "J62_63",
+                            nace_r2 == "M69_M702" ~ "M69_70",
+                            nace_r2 == "M74" ~ "M74_75",
+                            nace_r2 %in% c("N80","N81","N82") ~ "N80T82",
+                            T ~ nace_r2)) %>%
+  group_by(country = geo, industry = FIGARO) %>%
+  filter(base %in% TIME_PERIOD) %>%
+  group_by(country,industry,year = TIME_PERIOD) %>%
+  summarise(value = mean(OBS_VALUE,na.rm=T)) %>%
+  group_by(country, industry) %>%
+  reframe(value = value / value[year == base],
+          year) %>%
+  filter(!is.na(value))
+
+####FETCH AND FORMAT CHINESE PPI data
+
+cn_ppi = read.csv(here("price_data/CN_PPIs.csv"),
+                  skip = 2,
+                  header = T,
+                  check.names = F) %>%
+  filter(!is.na(.[,as.character(base)])) %>%
+  mutate(Indicators = case_when(1:n() == 1 ~ "Total",
+                                T ~ substring(Indicators,68))) %>%
+  pivot_longer(-1,names_to = "year") %>%
+  mutate(min_year = min(year[!is.na(value)]),
+         value = case_when(year == min_year ~ 100,
+                           T ~ value)) %>%
+  filter(!is.na(value)) %>%
+  group_by(Indicators) %>%
+  mutate(FIGARO = case_when(grepl('Mining|Extraction',Indicators) ~ "B",
+                            Indicators == "Manufacture of Foods" ~ "C10T12",
+                            Indicators == "Manufacture of Textile Wearing Apparel and Accessories" ~ "C13T15",
+                            Indicators == "Manufacture of Paper and Paper Products" ~ "C17",
+                            Indicators == "Printing and Reproduction of Recording Media" ~ "C18",
+                            Indicators == "Processing of Petroleum Coking and Processing of Nuclear Fuel" ~ "C19",
+                            Indicators == "Manufacture of Raw Chemical Materials and Chemical Products" ~ "C20",
+                            Indicators == "Manufacture of Medicines" ~ "C21",
+                            Indicators == "Manufacture of Rubber and Plastics Products" ~ "C22",
+                            Indicators == "Manufacture of Non-metallic Mineral Products" ~ "C23",
+                            grepl('Smelting',Indicators) ~ "C24",
+                            Indicators == "Manufacture of Metal Products" ~ "C25",
+                            Indicators == "Manufacture of Computers Communication and Other Electronic Equipment" ~ "C26",
+                            Indicators == "Manufacture of Electrical Machinery and Apparatus" ~ "C27",
+                            Indicators == "Other Manufacture" ~ "C28",
+                            Indicators == "Manufacture of Automobiles" ~ "C29",
+                            Indicators == "Manufacture of Railway Ship Aerospace and Other Transport Equipments" ~ "C30",
+                            Indicators == "Repair Service of Metal Products Machinery and Equipment" ~ "C33",
+                            Indicators %in% c("Production and Supply of Electric Power and Heat Power"," Production and Supply of Gas") ~ "D35",
+                            Indicators == " Production and Supply of Water" ~ "E36",
+                            Indicators == "Utilization of Waste Resources" ~ "E37T39",
+                            Indicators == "Total" ~ "TOTAL")) %>%
+    filter(!is.na(FIGARO)) %>%
+    group_by(FIGARO,year) %>%
+    summarise(value = mean(value),
+              basis = NA) %>%
+  ungroup()
+
+for(i in unique(cn_ppi$FIGARO))
+{
+  range = which(cn_ppi$FIGARO ==i)
+
+  for(j in range)
+  {
+    cn_ppi$basis[j] = 100 * prod(cn_ppi$value[range[1]:j]/100)
+  }
+
+  cn_ppi$basis[range] = cn_ppi$basis[range] / cn_ppi$basis[cn_ppi$FIGARO == i & cn_ppi$year == base]
+
+}
+
+####FETCH AND FORMAT US C26 PPI data
+
+#'PCU334---334---',#Computer & electronic product mfg C26
+#'PCU5182105182104',#Data processing, hosting and related services-Data management, information transformation, and related services J62_63
+#'PCU517---517---'))#,#Telecommunications J61
+#
+# Access https://data.bls.gov/series-report, type :
+# PCU334---334---
+# PCU5182105182104
+# PCU517---517---
+# Click 'Next'
+# Choose 'Multi-series table', Specify the 2010- range, Select 'Annual Data'
+# Click 'Retrieve data'
+# Download and rename the Excel file
+
+us_ppi = read_xlsx(here("price_data/US_PPIs.xlsx"),skip = 2,.name_repair = 'minimal') %>%
+  pivot_longer(-1,names_to = 'year') %>%
+  mutate(year = gsub("Annual\n","",year),
+         industry = case_when(`Series ID` == "PCU334---334---" ~ "C26",
+                              `Series ID` == "PCU5182105182104" ~ "J62_63",
+                              `Series ID` == "PCU517---517---" ~ "J61")) %>%
+  group_by(industry) %>%
+  mutate(value = value / value[year == base])
+
+
+if(verbose) print("Inserting additional PPI data into the price table...")
+
+
+for(i in 1:nrow(figaro_indexes))
+{
+
+  if(figaro_indexes$country[i] %in% codelist$iso2c[codelist$eu28 == "EU"])
+  {
+
+
+    if(figaro_indexes$industry[i] %in% eu_ppi$industry)
+    {
+      fig_country = ifelse(figaro_indexes$country[i] %in% eu_ppi$country,figaro_indexes$country[i],"EU27_2020")
+
+      figaro_indexes[i,as.character(time_serie)] = eu_ppi$value[match(paste0(fig_country,figaro_indexes$industry[i],time_serie),
+                                                                      paste0(eu_ppi$country,eu_ppi$industry,eu_ppi$year))]
+    }
+
+
+    if(figaro_indexes$industry[i] %in% eu_sppi$industry)
+    {
+
+      fig_country = ifelse(figaro_indexes$country[i] %in% eu_sppi$country,figaro_indexes$country[i],"EU27_2020")
+
+      figaro_indexes[i,as.character(time_serie)] = eu_sppi$value[match(paste0(fig_country,figaro_indexes$industry[i],time_serie),
+                                                                       paste0(eu_sppi$country,eu_sppi$industry,eu_sppi$year))]
+
+    }
+
+  }
+
+  if(figaro_indexes$country[i] == "CN" & figaro_indexes$industry[i] %in% cn_ppi$FIGARO) figaro_indexes[i,as.character(time_serie)] = cn_ppi$basis[match(paste0(figaro_indexes$industry[i],time_serie),
+                                                                                                                                                        paste0(cn_ppi$FIGARO,cn_ppi$year))]
+
+  if(figaro_indexes$country[i] == "US" & figaro_indexes$industry[i] %in% c("C26","J61","J62_63"))
+  {
+    figaro_indexes[i,as.character(time_serie)] = us_ppi$value[match(paste0(figaro_indexes$industry[i],time_serie),
+                                                                    paste0(us_ppi$industry,us_ppi$year))]
+  }
+
+
+}
+
+
 figaro_indexes$missing_values = rowSums(is.na(figaro_indexes))
 
 missing_figaro_indexes = figaro_indexes[figaro_indexes$missing_values == length(time_serie),]
-  #When a serie is partially filled, apply a rate
 
 for(i in as.character(time_serie))
 {
