@@ -556,7 +556,7 @@ sankey_figure|>
   )
 
 
-ggsave(paste0("results/figures/sankey_industry_",start_year,".pdf"), width=210, height=120, units="mm")
+ggsave(paste0("results/figures/sankey_industry_",edition ,"_", start_year,".pdf"), width=210, height=120, units="mm")
 
 sankey_prepare <- transfer_of_emissions |>  as.tibble() |>
   mutate(industry_ref_area = rel_industries) |>
@@ -699,5 +699,5 @@ sankey_figure |>
   )
 
 
-ggsave(paste0("results/figures/sankey_country_",start_year,".pdf"), width=210, height=120, units="mm")
+ggsave(paste0("results/figures/sankey_country_", edition ,"_", start_year,".pdf"), width=210, height=120, units="mm")
 #

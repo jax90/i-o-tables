@@ -32,6 +32,8 @@ fig_frame <- df |>
   ungroup() |>
   drop_na()
 
+write_parquet(fig_frame, paste0(main_path,"/results/emissions_over_time"))
+
 
 # Results Figure 1:
 

@@ -2,9 +2,12 @@ x = c('dplyr','tidyr','tibble','curl','stringr','ggplot2','eurostat','xml2','rve
 
 lapply(x,library,character.only = T)
 
-source(here("utils.R"))
+source(here("code/utils.R"))
 
-get_value_added_price_index = function(base,time_serie = 2010:2022,verbose = T,update = F)
+get_value_added_price_index = function(base,
+                                       time_serie = 2010:2022,
+                                       verbose = T,
+                                       update = T)
 {
 
   if(!update)
@@ -28,7 +31,7 @@ get_value_added_price_index = function(base,time_serie = 2010:2022,verbose = T,u
   #
   # unzip_file = unzip(zip_file,exdir = tempdir())
 
-  unzip_file = here("price_data/UNdata_Export_Constant.csv")
+  unzip_file = here(if(user =="jax"){paste0("data/", "price_data/UNdata_Export_Constant.csv")}else{"price_data/UNdata_Export_Constant.csv"})
 
   un_price_data_constant = read.csv(unzip_file,check.names = F)
 
@@ -38,7 +41,7 @@ get_value_added_price_index = function(base,time_serie = 2010:2022,verbose = T,u
   #
   # unzip_file = unzip(zip_file,exdir = tempdir())
 
-  unzip_file =  here("price_data/UNdata_Export_Current.csv")
+  unzip_file =  here(if(user =="jax"){paste0("data/", "price_data/UNdata_Export_Current.csv")}else{"price_data/UNdata_Export_Current.csv"})
 
   un_price_data_current = read.csv(unzip_file,check.names = F)
 
@@ -200,7 +203,7 @@ get_value_added_price_index = function(base,time_serie = 2010:2022,verbose = T,u
 
   ####FETCH AND FORMAT CHINESE PPI data
 
-  cn_ppi = read.csv(here("price_data/CN_PPIs.csv"),
+  cn_ppi = read.csv(here(folder = if(user =="jax"){paste0("data/", "price_data/CN_PPIs.csv")}else{"price_data/CN_PPIs.csv"}),
                     skip = 2,
                     header = T,
                     check.names = F) %>%
@@ -269,7 +272,7 @@ get_value_added_price_index = function(base,time_serie = 2010:2022,verbose = T,u
   # Click 'Retrieve data'
   # Download and rename the Excel file
 
-  us_ppi = read_xlsx(here("price_data/US_PPIs.xlsx"),skip = 2,.name_repair = 'minimal') %>%
+  us_ppi = read_xlsx(here( if(user =="jax"){paste0("data/", "price_data/US_PPIs.xlsx")}else{"price_data/US_PPIs.xlsx"}),skip = 2,.name_repair = 'minimal') %>%
     pivot_longer(-1,names_to = 'year') %>%
     mutate(year = gsub("Annual\n","",year),
            industry = case_when(`Series ID` == "PCU334---334---" ~ "C26",

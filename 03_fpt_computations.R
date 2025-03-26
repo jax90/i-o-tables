@@ -220,7 +220,7 @@ eeio_analysis = function(values_agg,
                          file_name,
                          exdir,
                          basis = as.interger(end_year),
-                         update = F,
+                         update = T,
                          verbose = T)
 {
   if(!update)
