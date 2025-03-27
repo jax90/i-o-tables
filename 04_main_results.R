@@ -230,6 +230,7 @@ scope_comparision|>
   xtable()
 
 final_emissions <- fig_frame_industry |>
+  mutate(embodied_emissions = as.integer(round(embodied_emissions/1000))) |>
   rename(year = time_period) |>
   filter(year == end_year| year == start_year) |>
   # pivot_wider(names_from="year",
@@ -269,7 +270,7 @@ total_emissions <- final_emissions |>
   select(year, industry, mediated) |>
   # Group by industry and filter for 2010 and 2021
   group_by(industry) |>
-  mutate("change in %" = (mediated[year == "2021"] / mediated[year == "2010"]) - 1)   |>
+  mutate("change in %" = ((mediated[year == "2021"] / mediated[year == "2010"]) - 1)*100)   |>
   ungroup() |>
   pivot_wider(names_from = year,
               values_from = mediated) |>
