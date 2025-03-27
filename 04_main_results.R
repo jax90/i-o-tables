@@ -128,6 +128,7 @@ ggsave(paste0("./results/figures/emissions_over_time_by_industry_",edition ,"_",
        plot = emissions_over_time_by_industry, width = 8, height = 6, dpi = 300)
 
 fig_frame_industry |>
+  mutate(embodied_emissions = as.integer(round(embodied_emissions/1000))) |>
   pivot_wider(names_from="industry",
               values_from="embodied_emissions") |>
   rename(year = time_period) |>
@@ -221,7 +222,8 @@ scope_comparision <- scopes_industry |>
   group_by(industry) |>
   mutate("2010 (relative)" = across(2)/sum(across(2)),
          "2021 (relative)" = across(3)/sum(across(3)))|>
-  ungroup()
+  ungroup() |>
+  mutate(across(c(`2010`, `2021`), ~ as.integer(round(.x / 1000))))
 
 # Table 4:
 scope_comparision|>
