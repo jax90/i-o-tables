@@ -2,7 +2,7 @@ x = c('dplyr','tidyr','tibble','curl','stringr','ggplot2','eurostat','xml2','rve
 
 lapply(x,library,character.only = T)
 
-source(here("code/utils.R"))
+source(list.files(here(),full.names = T,pattern = 'utils'))
 
 get_value_added_price_index = function(base,
                                        time_serie = 2010:2022,
@@ -25,21 +25,9 @@ get_value_added_price_index = function(base,
 
   if(verbose) print('Downloading UN current and constant VA data...')
 
-  # link_un_price_data_constant = "http://data.un.org/Handlers/DownloadHandler.ashx?DataFilter=group_code:204;fiscal_year:2010,2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023&DataMartId=SNA&Format=csv&c=2,3,4,6,7,8,9,10,11,12,13,14&s=_cr_engNameOrderBy:asc,fiscal_year:desc,_grIt_code:asc"
-  #
-  # zip_file = curl_download(link_un_price_data_constant,tempfile(fileext = '.zip'))
-  #
-  # unzip_file = unzip(zip_file,exdir = tempdir())
-
   unzip_file = here(if(user =="jax"){paste0("data/", "price_data/UNdata_Export_Constant.csv")}else{"price_data/UNdata_Export_Constant.csv"})
 
   un_price_data_constant = read.csv(unzip_file,check.names = F)
-
-  # link_un_price_data_current = "http://data.un.org/Handlers/DownloadHandler.ashx?DataFilter=group_code:205;fiscal_year:2010,2011,2012,2013,2014,2015,2016,2017,2018,2019,2020,2021,2022,2023&DataMartId=SNA&Format=csv&c=2,3,4,6,7,8,9,10,11,12,13,14&s=_cr_engNameOrderBy:asc,fiscal_year:desc,_grIt_code:asc"
-  #
-  # zip_file = curl_download(link_un_price_data_current,tempfile())
-  #
-  # unzip_file = unzip(zip_file,exdir = tempdir())
 
   unzip_file =  here(if(user =="jax"){paste0("data/", "price_data/UNdata_Export_Current.csv")}else{"price_data/UNdata_Export_Current.csv"})
 
@@ -116,22 +104,12 @@ get_value_added_price_index = function(base,
     ungroup() %>%
     arrange(country,industry)
 
-  # oecd_exch = read.csv(paste0("https://sdmx.oecd.org/archive/rest/data/OECD,DF_DP_LIVE,/.EXCH...A?&dimensionAtObservation=AllDimensions&format=csvfile"))
-  #
-  # figw1_weights = price_data %>%
-  #   mutate(iso2 = countrycode(country,'country.name','iso2c',warn = F),
-  #          iso3 = countrycode(country,'country.name','iso3c',warn = F)) %>%
-  #   filter(!iso2 %in% figaro_country_list) %>%
-  #   mutate(to_convert = ifelse(currency == "US dollar",0,1)) %>%
-  #   mutate(currency_to_usd = oecd_exch$OBS_VALUE[match(paste0(iso3,year),paste0(oecd_exch$LOCATION,oecd_exch$TIME_PERIOD))])
-  #Maybe use https://betadata.imf.org/en/Data-Explorer?datasetUrn=IMF.RES:WEO(4.0.0). OECD database contains to much missing exchange rates
-
   formatted_indexes = value_added_indexes %>%
     mutate(iso2 = countrycode(country,'country.name','iso2c',warn = F),
            figaro_country = case_when(iso2 %in% figaro_country_list ~ iso2,
                                       T ~ 'FIGW1')) %>%
     group_by(figaro_country,year,code) %>%
-    summarise(index = mean(recalibrated_index,na.rm=T)) %>% #Imply that price index for FIGW1 is retrieved by a simple arithmetic mean. To review
+    summarise(index = mean(recalibrated_index,na.rm=T)) %>% #Imply that price index for FIGW1 is retrieved by a simple arithmetic mean. Further work should be undertaken
     group_by(figaro_country,code) %>%
     mutate(index = index / index[year == base]) %>%
     ungroup() %>%
@@ -453,98 +431,4 @@ get_value_added_price_index = function(base,
 
   return(pivoted_indexes)
 }
-
-
-#Pre-load utils_sda.R, especially the fetch_format_data function
-
-get_constant_figaro_tables = function(years = 2010:2021,base = 2021,verbose = T,folder = NULL)
-{
-  price_data = get_value_added_price_index(base) %>%
-    mutate(id = paste0(country,"_",industry))
-
-  list_constant = list()
-
-  for(i in years)
-  {
-    if(verbose) print(paste0("FIGARO ",i," deflation procedure..."))
-
-    formatted_figaro = fetch_format_data(i,folder = NULL)
-
-    formatted_figaro$distributed_demand =
-      formatted_figaro$distributed_demand %>%
-      pivot_longer(-1,names_to = 'counterpart') %>%
-      mutate(deflator = price_data$value[match(paste0(i,id),
-                                               paste0(price_data$year,price_data$id))],
-             value = deflator * value) %>%
-      select(!deflator) %>%
-      pivot_wider(names_from = "counterpart")
-
-    formatted_figaro$transaction_flows =
-      formatted_figaro$transaction_flows %>%
-      rownames_to_column('resource_id') %>%
-      pivot_longer(-1,names_to = 'use_id') %>%
-      mutate(deflator = price_data$value[match(paste0(i,resource_id),
-                                               paste0(price_data$year,price_data$id))],
-             value = value * deflator) %>%
-      select(!deflator) %>%
-      pivot_wider(names_from = "use_id") %>%
-      column_to_rownames("resource_id")
-
-    formatted_figaro$intermediate_consumption =
-      colSums(formatted_figaro$transaction_flows)
-
-    formatted_figaro$production =
-      rowSums(formatted_figaro$distributed_demand[,-1]) + rowSums(formatted_figaro$transaction_flows)
-
-    formatted_figaro$value_added =
-      formatted_figaro$production - formatted_figaro$intermediate_consumption
-
-    formatted_figaro$aggregated_demand =
-      formatted_figaro$distributed_demand %>% column_to_rownames('id') %>% rowSums()
-
-
-    list_constant[[as.character(i)]] = formatted_figaro
-
-    rm(formatted_figaro)
-
-    if(verbose) print(paste0("FIGARO ",i," tables deflated"))
-
-  }
-
-  return(list_constant)
-}
-
-extract_constant_table = function(constant_tables,
-                                  item,#"transaction_flows","distributed_demand","aggregated_demand","intermediate_consumption","production","value_added"
-                                  year)
-{
-
-  if(!year %in% names(constant_tables)) stop(paste0("selected year are not stored in 'constant_tables', it should be either : ",paste0(names(constant_tables),collapse = ", ")))
-
-  if(!item %in% names(constant_tables[[as.character(year)]])) stop(paste0("'item' should be one of these strings : ",paste0(names(constant_tables[[as.character(year)]]),collapse = ', ')))
-
-  output = constant_tables[[as.character(year)]][[item]]
-
-  return(output)
-}
-
-# test1 = get_value_added_price_index(2010) #WORKS
-# test2 = get_value_added_price_index(2015) #WORKS
-#
-# test3 = get_constant_figaro_tables(years = 2010:2021,
-#                                    folder = "./data/values/values_agg_23.rds") #WORKS
-# test4 = fetch_format_data(year = 2021,
-#                           folder = "C:/Users/Joris/OneDrive - La Société Nouvelle/Documents/Travaux statistiques/Travaux appliqués/F Charpentier - ICT4S/Embodied footprint",
-#                           ghg = F) #WORKS
-#
-# test5 = fetch_format_data(year = 2021,
-#                           folder = "C:/Users/Joris/OneDrive - La Société Nouvelle/Documents/Travaux statistiques/Travaux appliqués/F Charpentier - ICT4S/Embodied footprint",
-#                           ghg = T) #WORKS
-# test6 = extract_constant_table(test3,
-#                                'transaction_flows',
-#                                2010) #WORKS
-# test7 = extract_constant_table(test3,
-#                                'production',
-#                                2010) #WORKS
-
 

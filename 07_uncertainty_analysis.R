@@ -27,11 +27,8 @@ mc_sensitivity_analysis = function(values_agg,
 
   E = emissions %>%
     filter(time_period == !!time_period) %>%
-   # separate(resource_id,c("country","industry"),sep = "_",extra = 'merge',remove = F) %>%
     filter(industry != "HH") %>%
     arrange(country,industry)
-
-
 
     #create a folder to store the associated analysis
 
@@ -163,23 +160,15 @@ mc_sensitivity_analysis(values_agg,
 
 ###APPENDIX : FIGURES ON UNCERTAINTY
 
-#original_fpt = 2140567
+original_fpt = 2140567
 
-original_fpt <- read_parquet(paste0(main_path,"/results/emissions_over_time")) |>
-  filter(time_period== end_year) |>
-  pull(embodied_total)
+results_wilting = here('uncertainty_wilting.rds')
 
-
-dt = read.csv(paste0(main_path,"/results/Wilting/mc_resultsinteractions.csv"),sep = ";",header = T,row.names = NULL,check.names = F) %>%
-  filter(!is.na(`Distributed footprint`)) %>%
-  mutate(Simulation = 'MRIOT') %>%
-  rbind(
-    read.csv(paste0(main_path,"/results/Wilting/mc_resultsemissions.csv"),sep = ";",header = T,row.names = NULL,check.names = F) %>%
-      filter(!is.na(`Distributed footprint`)) %>%
-      mutate(Simulation = 'Emissions')
-  ) %>%
+dt = readRDS(results_wilting) %>%
   mutate(paper = 'Wilting (2012)') %>%
   group_by(Simulation,paper) %>%
+  mutate(num = 1:n()) %>%
+  filter(num <= 1000) %>%
   mutate(mean_sim = mean(`Distributed footprint`),
          p5 = quantile(`Distributed footprint`,probs = .05),
          p95 = quantile(`Distributed footprint`,probs = .95),
@@ -191,8 +180,7 @@ dt = read.csv(paste0(main_path,"/results/Wilting/mc_resultsinteractions.csv"),se
   ungroup()
 
 
-
-
+sd(dt$`Distributed footprint`[dt$Simulation == 'MRIOT'])
 
 options(scipen = 999)
 
@@ -207,7 +195,6 @@ ggplot(dt %>% mutate(`Distributed footprint` = `Distributed footprint` / scale) 
     legend.background = element_blank(),
     legend.key = element_blank(),
     panel.background = element_blank(),
-    #panel.border = element_blank(),
     strip.background = element_blank(),
     plot.background = element_blank(),
     axis.line = element_blank(),
@@ -223,8 +210,6 @@ ggplot(dt %>% mutate(`Distributed footprint` = `Distributed footprint` / scale) 
              colour="mean"), linetype ="1212", linewidth=1) +
   geom_vline(aes(xintercept=original_fpt/scale,
              colour="actual"), linewidth=1) +
-  # geom_rect(aes(xmin = (mean - margin_error)/scale, xmax = (mean + margin_error)/scale, ymin = -Inf, ymax = Inf),alpha = .005,show.legend = F,color = 'lightgrey')+
-
   theme(axis.line.y=element_blank(),
         axis.text.y=element_blank(),
         axis.ticks.y=element_blank(),
@@ -238,8 +223,7 @@ ggplot(dt %>% mutate(`Distributed footprint` = `Distributed footprint` / scale) 
         legend.text = element_text(size = 18)) +
   scale_colour_manual(name = 'colour',
                       values =c('perc. 5 and 95'='red','mean'='green','median' = 'cyan','actual' = 'black'))  +
-  #xlim(c(2000000 / scale, 2250000 / scale))+
-  xlim(c(2100000 / scale, 2200000 / scale))+
+  xlim(c(2000000 / scale, 2250000 / scale))+
   facet_wrap(~Simulation,scales = 'free_x') +
   labs(x = 'total embodied emissions (in mt CO2e)')
 

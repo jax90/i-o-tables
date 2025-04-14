@@ -1,9 +1,9 @@
 
-format_emissions = function(folder,
-                            exdir,
-                            update = F,
+format_emissions = function(folder,#Input path
+                            exdir,#Output path
+                            update = F,#(by default, F use an ad hoc temporary storage system)
                             verbose = T,
-                            edition = edition)
+                            edition = edition)#FIGARO version (23 or 24 as for now)
 {
   if(!update)
   {
@@ -20,6 +20,7 @@ format_emissions = function(folder,
   df <- filenames |>
     map_dfr(fread, sep = ",")
 
+  #As 2011 year is subject to large outliers, we impute values by simple arithmetic means
 
   df_2010 <- df |>
     select(time_period, industry, ref_area, counterpart_area, sto, obs_value) |>
@@ -39,42 +40,15 @@ format_emissions = function(folder,
       left_join(df_2012, by = c("industry", "ref_area", "counterpart_area", "sto")) |>
       mutate(obs_value = if_else(time_period == 2011, 0.5* value_2010 + 0.5* value_2012, obs_value)) |>
     select(-value_2010, -value_2012)
-                #   group_by(industry, ref_area, counterpart_area, counterpart_industry) |>
-
-  # df <- df |>
-  #   group_by(industry, ref_area, counterpart_area, sto) |>
-  #   mutate(
-  #     value_2011 = obs_value[time_period == 2011],
-  #     value_2012 = obs_value[time_period == 2012],
-  #     obs_value = if_else(
-  #       ref_area == "CN" & time_period == 2011,
-  #       0.5 * value_2011 + 0.5 * value_2012,
-  #       obs_value
-  #     )
-  #   ) |>
-  #   ungroup() |>
-  #   select(-value_2011, -value_2012)
-
 
   write_parquet(df, paste0(exdir,"/co2e_emission_agg_", edition,".parquet"))
 
   return(df)
 
 }
-#
-# df |>
-#   filter(ref_area == "CN") |>
-#   group_by(time_period) |>
-#   summarise(obs_value  = sum(obs_value), .groups = "drop" )
-#
 
 
-# format_emissions(folder = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
-#                  exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
-#                  update = T)
 
-#ref_area refers to rows
-#counterpart refers to columns
 
 read_csv_with_time <- function(file_path) {
   # Read the CSV file
@@ -110,7 +84,9 @@ format_iot = function(folder, #matrix_eu-ic-io_ind-by-ind_23ed local path
 
   if(edition == "24")
   {
-    if(verbose) print('Impute 2011 for China...')
+    #As 2011 year is subject to large outliers, we impute values by simple arithmetic means
+
+  if(verbose) print('Impute 2011 for China...')
   if(verbose) print('Prepare frame...')
 
     df <- df |>
@@ -173,6 +149,3 @@ format_iot = function(folder, #matrix_eu-ic-io_ind-by-ind_23ed local path
 
 }
 
-# format_iot(folder = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
-#            exdir = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23",
-#            update = T)

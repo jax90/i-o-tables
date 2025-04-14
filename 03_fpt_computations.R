@@ -1,5 +1,5 @@
-#main path <- "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23"
-#main_path <- "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23"
+#Run through file 'master.R'
+
 values_agg = format_iot(folder = if(user =="jax"){paste0(main_path, "/data/values")}else{main_path},
                         exdir = if(user =="jax"){paste0(main_path, "/data/values")}else{main_path},
                         update = T,
@@ -27,23 +27,23 @@ eeio_computations = function(input_output,
 
   if(verbose) print("Initialisation of variables")
 
-  X = rowSums(input_output,na.rm = T)
+  X = rowSums(input_output,na.rm = T) #Output
 
   B = emissions_year %>%
     mutate(production = X[match(resource_id,names(X))]) %>%
     reframe(value = case_when(production == 0 ~ 0,
-                              T ~ direct_emissions / production))
+                              T ~ direct_emissions / production)) #Emissions per unit of output
 
 
   Ds = input_output[,grepl('P3|P5',colnames(input_output))] %>%
-    as.matrix()
+    as.matrix() #Distributed final demand
 
-  D = rowSums(Ds,na.rm = T)
+  D = rowSums(Ds,na.rm = T) #Aggregated final demand
 
   Z =
     input_output %>%
     select(all_of(rownames(.))) %>%
-    as.matrix()
+    as.matrix() #Transaction flows matrix
 
   # the Leontief inverse is not invertible in two situations
   #
@@ -55,11 +55,11 @@ eeio_computations = function(input_output,
 
   diag(Z)[diag(Z) == colSums(Z,na.rm = T)] = 0
 
-  A = sweep(Z,2,as.numeric(X),`/`) ; A[is.nan(A) | is.infinite(A)] = 0
+  A = sweep(Z,2,as.numeric(X),`/`) ; A[is.nan(A) | is.infinite(A)] = 0 #Technical coefficients matrix
 
   if(verbose) print(paste0("Inversing (I-A) matrix..."))
 
-  L = L_adjust = solve(diag(nrow = nrow(A)) - A)
+  L = L_adjust = solve(diag(nrow = nrow(A)) - A) #Leontief inverse matrix
 
 
   if(verbose) print(paste0("Computing production footprints..."))
@@ -114,11 +114,6 @@ eeio_computations = function(input_output,
 
   indirect_fpt = distributed_fpt - E_ict
 
-  #scope2 = colSums(indirect_fpt[grep('D35',colnames(x=L_adjust)),],na.rm = T)
-  # that appears not as a valid calculation to me, because now you consider the energy that was necessary for
-  #mining, chemicals, etc. as scope 2 .. But as I understand scope 2 emissions are emissions from the energy sector
-  #that go into ICT industries directly
-
   if(verbose) print(paste0("Computing scope 1,2, and 3 for individual industries..."))
 
   scope1 <- list()
@@ -165,16 +160,12 @@ eeio_computations = function(input_output,
   }
 
 
-
-  ### this does not solve the issue of douple counting across countries? For instance DE_C26 and F_C26 right?
-#  scope3 = colSums(indirect_fpt[-grep('D35',colnames(x=L_adjust)),],na.rm = T)
-
   production_fpt_elements = data.frame(
     resource_id = rownames(L_adjust)[selected_industry_num],
     production_footprint = total_fpt
     )
-  # scope1 = emissions$direct_emissions[selected_industry_num]
-  # print(cbind(scope1+scope2+scope3,total_fpt)) #IT WORKS
+
+  #Formatting results
 
   results_table = L %>%
     as.data.frame() %>%
@@ -192,7 +183,6 @@ eeio_computations = function(input_output,
            direct_emissions = emissions_year$direct_emissions[match(resource_id,emissions_year$resource_id)],
            absolute_emissions = emissions_year$absolute_emissions[match(resource_id,emissions_year$resource_id)],
            ) %>%
-   # left_join(production_fpt_elements,by = 'resource_id') %>%
     mutate(
       scope1_C26 = scope1[["C26"]],
       scope2_C26 = scope2[["C26"]],
@@ -205,8 +195,6 @@ eeio_computations = function(input_output,
       scope3_J62_63 = scope3[["J62_63"]]
     ) %>%
     left_join(distributed_fd_fpt,by = 'resource_id')
-
-
 
 
   return(results_table)
