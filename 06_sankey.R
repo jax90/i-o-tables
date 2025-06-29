@@ -1,6 +1,6 @@
 # Load necessary library
 
-font_fam <- "PT Serif"
+font_fam <- "roboto"
 sysfonts::font_add_google(font_fam)
 showtext::showtext_auto()
 
@@ -182,17 +182,28 @@ sankey_figure|>
   ggplot(aes(
     x=stage, y=weight, group=node, connector=connector, edge_id=edge_id
   )) +
-  geom_sankeyedge(aes(fill=node), position=pos, alpha=0.6) +
+  geom_sankeyedge(aes(fill=node), position=pos, alpha=.60) +
   geom_sankeynode(fill="gray40", position=pos) +
   geom_text(
     aes(label=node_label), stat="sankeynode", position=pos, size=2.5,
     family=font_fam, lineheight = 0.5, hjust=1
   ) +
-  scale_fill_manual(
+  scale_fill_manual( # color nlind scale https://thenode.biologists.com/data-visualization-with-flying-colors/research/
+
     values=c(
-      "#555283",
-      "#855C75", "#D9AF6B", "#AF6458", "#736F4C", "#526A83", "#625377",
-      "#68855C", "#9C9C5E", "#A06177", "#8C785D", "#467378", "#7C7C7C"
+      "#008607", # Green
+      "#00DCB5", # Aqua
+      "#008169", # Deep Sea Green
+      "#009FFA", # Azure
+      "#7CFFFA", # Cyan
+      "#003C86", # Blue
+      "#9400E6", # Purple
+      "#FF71FD", # Magenta
+      "#FFCFE2" , # Pink
+      "#EF0096", # Cerise
+      "#F60239", # Red
+      "#6A0213", # Crimson
+      "#FFDC3D" # Yellow
     )
   ) +
   scale_x_discrete(expand=expansion(c(0.35, 0.08))) +

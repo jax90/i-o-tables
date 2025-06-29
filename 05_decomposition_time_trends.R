@@ -35,6 +35,8 @@ embodied_ICT <- emissions |>
 
 decomposition <-bind_rows(embodied_all, embodied_ICT)
 
+rm(embodied_all, embodied_ICT)
+
 demand_all <- emissions |>
   select(time_period, Y_total) |>
   summarise(Y = sum(Y_total, na.rm = TRUE), .by = c(time_period)) |>
@@ -59,6 +61,8 @@ demand <-bind_rows(demand_all, demand_ICT)
 
 decomposition <- decomposition |>
   left_join(demand, by= c( "time_period", "ICT"))
+
+rm(demand, demand_all, demand_ICT)
 
 rel_industries <- emissions |>
   unite("industry_ref_area", country, industry, sep = "_")
@@ -112,6 +116,8 @@ weights <-bind_rows(weights_all, weights_ICT)
 decomposition <- decomposition |>
   left_join(weights, by= c( "time_period", "ICT"))
 
+rm(weights, weights_all, weights_ICT)
+
 intensity_all <- emissions |>
   select(time_period, direct_emissions, total_output) |>
   summarise(across(everything(), \(x){sum(x, na.rm=TRUE)}), .by = time_period) |>
@@ -147,7 +153,9 @@ intensity_ICT <- intensity_ICT |>
     grepl("J62_63", industry_country  ) ~ "IT services",
     TRUE ~ "mediated"
   ))|>
-  drop_na() |>
+  drop_na()
+
+intensity_ICT <- intensity_ICT|>
   summarise(emission_intensity = weighted.mean(x =emissions_per_output  , w = weight, na.rm = TRUE), .by = c(time_period, ICT)) |>
   drop_na()
 
@@ -156,11 +164,13 @@ intensity_ICT <- intensity_ICT |>
   mutate(emission_intensity = emission_intensity/emission_intensity[time_period ==start_year]) |>
   ungroup()
 
+
 intensity <-bind_rows(intensity_all, intensity_ICT)
 
 decomposition <- decomposition |>
   left_join(intensity, by= c( "time_period", "ICT"))
 
+rm(intensity, intensity_all, intensity_ICT)
 
 facet_labels <- c("embodied" = "a) embodied emissions",
                   "emission_intensity" = "b) emission intensity",
@@ -204,11 +214,11 @@ decomposition_changes <- decomposition_final |>
   )) +
   ggtitle(paste0("change in % (baseline ",start_year,")")) +
   labs(x = "year", y = "") +
-  theme_tufte() +
+  theme_tufte(  ) +
   theme(
     legend.position = "bottom",
-    plot.title = element_text(hjust = 0.5, family = "serif", size = 14),
-    text = element_text(family = "serif", size = 14),  # Set overall text to serif and size 12
+    plot.title = element_text(hjust = 0.5, family = "sans", size = 14),
+    text = element_text(family = "sans", size = 14),  # Set overall text to serif and size 12
     axis.title = element_text(size = 14),  # Set axis titles to size 12
     legend.text = element_text(size = 12),  # Set legend text to size 12
     legend.title=element_blank(),  # Set legend title to size 12

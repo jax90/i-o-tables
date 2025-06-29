@@ -41,11 +41,11 @@ fd_emissions_over_time <- ggplot(fig_frame, aes(x = as.integer(time_period))) +
 
   geom_line(aes(y = embodied_total / 1000, linetype = "total demand", color = "absolute")) +
   geom_text(aes(y = embodied_total / 1000, label = round(embodied_total / 1000)),
-            vjust = -0.5, color = "#0072B2", size = 4.5, family = "serif") +
+            vjust = -0.5, color = "#0072B2", size = 4.5, family = "sans") +
 
   geom_line(aes(y = rel_embodied_total * 100 * 100, linetype = "total demand", color = "relative")) +
   geom_text(aes(y = rel_embodied_total * 100 * 100, label = round(rel_embodied_total * 100, 2)),
-            vjust = -0.5, color = "#D55E00", size = 4.5 , family = "serif") +
+            vjust = -0.5, color = "#D55E00", size = 4.5 , family = "sans") +
 
 
   scale_linetype_manual(values = c("final demand" = "dashed", "total demand" = "solid"),
@@ -66,7 +66,7 @@ fd_emissions_over_time <- ggplot(fig_frame, aes(x = as.integer(time_period))) +
   theme_tufte() +
   theme(
     legend.position = "bottom",
-    text = element_text(size = 14),  # Set overall text size
+    text = element_text(size = 14,family = "sans"),  # Set overall text size
      axis.title = element_text(size = 14),  # Set axis title size
      axis.text = element_text(size = 14),  # Set axis title size
      legend.text = element_text(size = 14),  # Set legend text size
@@ -111,8 +111,9 @@ emissions_over_time_by_industry <- fig_frame_industry |>
     limits = c(0, 3000)
   ) +
   theme_tufte() +
-  theme(legend.position = "bottom",
-        text = element_text(size = 14),  # Set overall text size
+  theme(
+        legend.position = "bottom",
+        text = element_text(size = 14, family = "sans"),  # Set overall text size
         axis.title = element_text(size = 14),  # Set axis title size
         axis.text = element_text(size = 14),  # Set axis title size
         legend.text = element_text(size = 14),  # Set legend text size
@@ -135,7 +136,7 @@ fig_frame_industry |>
   xtable()
 
 scopes_industry <- df |>
-   select(time_period,matches("scope")) %>%
+   select(time_period, matches("scope")) %>%
   distinct() %>% pivot_longer(
     matches("scope"),
     names_to = "scope",
@@ -164,18 +165,23 @@ scopes_industry <- df |>
   select(-Scope) %>%
    mutate(industry = factor(industry, levels = industry_order))
 
+scopes_industry <- scopes_industry %>%
+  mutate(time_period = factor(time_period, levels = c(start_year, end_year)))
 
 scopes_by_industry <- ggplot() +
+  # Bar plot for end_year
   geom_bar(data = scopes_industry %>% filter(time_period == end_year),
-           aes(x = scope, y = value / 1000, color = end_year, fill = industry),
+           aes(x = scope, y = value / 1000, color = time_period, fill = industry),
            stat = "identity", alpha = 0.5) +
-  # Add points for 2010
+  # Add points for start_year
   geom_point(data = scopes_industry %>% filter(time_period == start_year),
-             aes(x = scope, y = value / 1000, color =start_year, shape = start_year),
+             aes(x = scope, y = value / 1000, color = time_period, shape = time_period),
              size = 4) +
   # Define shape and color scales for legend
-  scale_color_manual(name = "year",
-                     values = c( start_year = "red", end_year= "darkgrey")) +
+  scale_color_manual(
+    name = "year",
+    values = c("2010" = "red", "2021" = "darkgrey") # Ensure levels match
+  ) +
   scale_fill_manual(
     name = "industry",
     values = c(
@@ -192,13 +198,14 @@ scopes_by_industry <- ggplot() +
     y = "CO2e in mt"
   ) +
   theme_tufte() +
-  theme(
-    legend.position = "right"
-  ) +
+  # theme(
+  #   legend.position = "right"
+  # ) +
   guides(shape = "none", fill ="none") +
   #scale_y_log10() +
-  theme(legend.position = "bottom",
-        text = element_text(size = 20),  # Set overall text size
+  theme(
+        legend.position = "bottom",
+        text = element_text(size = 20, family = "sans"),  # Set overall text size
         axis.title = element_text(size = 20),  # Set axis title size
         axis.text = element_text(size = 20),  # Set axis title size
         legend.title = element_text(size = 20),  # Set legend title size

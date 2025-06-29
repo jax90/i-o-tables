@@ -1,8 +1,5 @@
+main_path <- "/home/jannaaxe/Schreibtisch/Projekte/IO-analysis"
 user = "jax"
-user = "joris"
-
-if(user == "jax") main_path = "/home/jannaaxe/Schreibtisch/Projekte/IO-analysis"
-if(user == "joris") main_path = "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23"
 
 setwd(main_path)
 
@@ -16,5 +13,12 @@ edition = "23"
 start_year = "2010"
 end_year = "2021"
 
-
-lapply(list.files(here(),full.names = T,pattern = "0"),source)
+lapply(
+  lapply(c('code/01_aggregate_FIGARO_files.R',
+          'code/02_deflation_procedure.R',
+            'code/03_fpt_computations.R',
+           'code/04_main_results.R',
+           'code/05_decomposition_time_trends.R',
+           'code/06_sankey.R'
+           ), here),
+  source)
