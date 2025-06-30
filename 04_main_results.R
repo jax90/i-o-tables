@@ -1,14 +1,43 @@
-
-#main_path <- "C:/Users/Joris/OneDrive - La Société Nouvelle/Partage/FIGARO ed23/footprint_results_23_data.parquet"
-main_path <- "/home/jannaaxe/Schreibtisch/Projekte/IO-analysis"
-setwd(main_path)
-
 x = c('arrow','ggthemes','xtable')
 lapply(x,library,character.only=T)
 
 options(scipen = 100, digits = 4)
 
-emissions <- read_parquet( if(user =="jax"){paste0(main_path, "/data/footprint_results_",edition,"_data.parquet")}else{main_path}) |>
+#Figure 1 - Share of output stored in prd - Get deflated output#
+
+values_agg = format_iot(folder = if(user =="jax"){paste0(main_path, "/data/values")}else{main_path},
+                        exdir = if(user =="jax"){paste0(main_path, "/data/values")}else{main_path},
+                        update = F,
+                        edition = edition)
+
+price_index = get_value_added_price_index(2021,update = F) |>
+  rename(deflator = value,
+         ref_area = country,
+         time_period = year) |>
+  select(-base)
+
+values_agg =
+  values_agg %>%
+  separate(rowLabels,into = c('ref_area','industry'),sep = "_",remove = F,extra = 'merge') %>%
+  full_join(price_index, by = c("ref_area" ,"industry" ,"time_period")) |>
+  mutate(across(where(is.numeric), \(.x){.x*deflator} )) |>
+  select(-c("ref_area","industry","deflator"))
+
+rm(price_index)
+
+prd = values_agg %>%
+  pivot_longer(-c(rowLabels,time_period)) %>%
+  filter(!grepl('W2',rowLabels)) %>%
+  group_by(rowLabels,time_period) %>%
+  summarise(value = sum(value,na.rm=T)) %>%
+  group_by(time_period) %>%
+  summarise(share_of_output = sum(ifelse(grepl("C26|J61|J62_63",rowLabels),value,0),na.rm=T) / sum(value,na.rm = T))
+
+rm(values_agg)
+
+#Fetch and format results of vizualisation#
+
+emissions <- read_parquet( if(user =="jax"){paste0(main_path, "/data/footprint_results_",edition,"_data.parquet")}else{paste0(main_path, "/footprint_results_",edition,"_data.parquet")}) |>
   separate(resource_id,into = c('country',"industry"),extra = 'merge',sep = "_") |>
   mutate(year = as.integer(time_period)) |>
   filter(year >= as.integer(start_year)) |>
@@ -17,41 +46,38 @@ emissions <- read_parquet( if(user =="jax"){paste0(main_path, "/data/footprint_r
 
 df <- emissions |>
   select(industry, country,
-         time_period, direct_emissions, matches("embodied_emissions"),  absolute_emissions, matches("scope"),
+         time_period, direct_emissions, matches("embodied_emissions"), matches("scope"),
          X_total = total_output)
 
-fig_frame <- df |>
-  mutate(embodied_emissions = rowSums(df |> select(starts_with("embodied_emissions_")), na.rm = TRUE)) |>
-  select(-starts_with("embodied_emissions_")) %>%
-  group_by(time_period) |>
-  summarise(embodied_total  = sum(embodied_emissions, na.rm = TRUE),
-           # embodied_final = sum(ifelse(grepl("(26|61|62|63)", industry), embodied_emissions, 0), na.rm = TRUE)) |>
-            absolute_emissions = mean(absolute_emissions)) %>%
-  mutate(rel_embodied_total = embodied_total / absolute_emissions) |>
- # mutate(rel_embodied_final = embodied_final / absolute_emissions) |>
-  ungroup() |>
-  drop_na()
+#Figure 1#
 
-write_parquet(fig_frame, paste0(main_path,"/results/emissions_over_time"))
-
-
-# Results Figure 1:
+fig_frame =
+  emissions %>%
+  mutate(production_footprint = rowSums(df |> select(starts_with("embodied_emissions")), na.rm = TRUE)) %>%
+  select(country,time_period,industry,production_footprint,direct_emissions) %>%
+  group_by(time_period) %>%
+  summarise(share_footprint = sum(production_footprint,na.rm = T) / sum(direct_emissions,na.rm=T),
+            total_footprint = sum(production_footprint,na.rm=T)) %>%
+  left_join(prd,by = 'time_period')
 
 fd_emissions_over_time <- ggplot(fig_frame, aes(x = as.integer(time_period))) +
 
-  geom_line(aes(y = embodied_total / 1000, linetype = "total demand", color = "absolute")) +
-  geom_text(aes(y = embodied_total / 1000, label = round(embodied_total / 1000)),
+  geom_line(aes(y = total_footprint / 1000, color = "absolute emissions")) +
+  geom_point(aes(y = total_footprint / 1000, color = "absolute emissions"), size = 3) +
+  geom_text(aes(y = total_footprint / 1000, label = round(total_footprint / 1000)),
             vjust = -0.5, color = "#0072B2", size = 4.5, family = "sans") +
 
-  geom_line(aes(y = rel_embodied_total * 100 * 100, linetype = "total demand", color = "relative")) +
-  geom_text(aes(y = rel_embodied_total * 100 * 100, label = round(rel_embodied_total * 100, 2)),
-            vjust = -0.5, color = "#D55E00", size = 4.5 , family = "sans") +
+  geom_line(aes(y = share_footprint * 100 * 100, color = "share of emissions")) +
+  geom_point(aes(y = share_footprint* 100 * 100, color = "share of emissions"), size = 3) +
+  geom_text(aes(y = share_footprint * 100 * 100, label = round(share_footprint * 100, 2)),
+            vjust = +1.5, color = "#D55E00", size = 4.5 , family = "sans") +
 
+  geom_line(aes(y = share_of_output * 100 * 100, color = "share of output")) +
+  geom_point(aes(y = share_of_output * 100 * 100, color = "share of output"), size = 3) +
+  geom_text(aes(y = share_of_output * 100 * 100, label = round(share_of_output * 100, 2)),
+            vjust = -1.5, color = "#B03A2E", size = 4.5 , family = "sans") +
 
-  scale_linetype_manual(values = c("final demand" = "dashed", "total demand" = "solid"),
-                        name = "") +
-
-  scale_color_manual(values = c("absolute" = "#0072B2", "relative" = "#D55E00"),
+  scale_color_manual(values = c("absolute emissions" = "#0072B2", "share of emissions" = "#D55E00","share of output" = "#B03A2E"),
                      name = "") +
 
   scale_y_continuous(
@@ -66,16 +92,18 @@ fd_emissions_over_time <- ggplot(fig_frame, aes(x = as.integer(time_period))) +
   theme_tufte() +
   theme(
     legend.position = "bottom",
-    text = element_text(size = 14,family = "sans"),  # Set overall text size
-     axis.title = element_text(size = 14),  # Set axis title size
-     axis.text = element_text(size = 14),  # Set axis title size
-     legend.text = element_text(size = 14),  # Set legend text size
-     legend.title = element_text(size = 14),  # Set legend title size
-     strip.text = element_text(size = 14)    # Set facet strip text size
-  #
+    text = element_text(size = 14),  # Set overall text size
+    axis.title = element_text(size = 14),  # Set axis title size
+    axis.text = element_text(size = 14),  # Set axis title size
+    legend.text = element_text(size = 14),  # Set legend text size
+    legend.title = element_text(size = 14),  # Set legend title size
+    strip.text = element_text(size = 14)    # Set facet strip text size
+    #
   )
 
 fd_emissions_over_time
+
+
 
 ggsave(
        paste0("./results/figures/emissions_over_time_",edition ,"_", start_year, "_", end_year ,".pdf"),
