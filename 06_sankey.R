@@ -1,4 +1,5 @@
-# Load necessary library
+footprint_results_path <- file.path(data_directory, paste0("footprint_results_", edition, "_data.parquet"))
+
 
 font_fam <- "roboto"
 sysfonts::font_add_google(font_fam)
@@ -6,8 +7,7 @@ showtext::showtext_auto()
 
 options(scipen = 100, digits = 4)
 
-emissions <- read_parquet( if(user =="jax"){paste0(main_path, "/data/footprint_results_23_data.parquet")}
-                           else{main_path}) |>
+emissions <- read_parquet(footprint_results_path) |>
   mutate(year = as.integer(time_period)) |>
   filter(year >= as.integer(start_year)) |>
   select(-year) |>
@@ -215,7 +215,7 @@ sankey_figure|>
   )
 
 
-ggsave(paste0("./results/figures/sankey_industry_",edition ,"_", end_year ,".pdf"),
+ggsave(file.path(output_dir(paste0("sankey_industry_",edition ,"_", end_year ,".pdf"),
        width=210, height=120, units="mm")
 
 # Europe (Schengen + GB)
@@ -567,7 +567,7 @@ sankey_figure|>
   )
 
 
-ggsave(paste0("results/figures/sankey_industry_",edition ,"_", start_year,".pdf"), width=210, height=120, units="mm")
+ggsave(file.path(output_dir,"sankey_industry_",edition ,"_", start_year,".pdf"), width=210, height=120, units="mm")
 
 sankey_prepare <- transfer_of_emissions |>  as.tibble() |>
   mutate(industry_ref_area = rel_industries) |>
@@ -710,5 +710,5 @@ sankey_figure |>
   )
 
 
-ggsave(paste0("results/figures/sankey_country_", edition ,"_", start_year,".pdf"), width=210, height=120, units="mm")
+ggsave(file.path(output_dir,paste0("sankey_country_", edition ,"_", start_year,".pdf"), width=210, height=120, units="mm")
 #

@@ -1,7 +1,3 @@
-x = c('dplyr', 'purrr', 'data.table', 'arrow', 'progress', 'rvest', 'stringr','eurostat','curl')
-lapply(x, library, character.only = TRUE)
-
-
 # Generic Data Download Function ---
 
 

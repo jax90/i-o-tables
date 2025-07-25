@@ -1,6 +1,3 @@
-x <- c('arrow', 'dplyr', 'tidyr', 'ggplot2', 'ggthemes', 'xtable', 'stringr', 'here')
-lapply(x, library, character.only = TRUE)
-
 options(scipen = 100, digits = 4)
 
 # Centralize ggplot theme for consistency across all plots

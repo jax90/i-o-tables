@@ -1,8 +1,8 @@
+footprint_results_path <- file.path(data_directory, paste0("footprint_results_", edition, "_data.parquet"))
 
 options(scipen = 100, digits = 4)
 
-emissions <- read_parquet( if(user =="jax"){paste0(main_path, "/data/footprint_results_",edition,"_data.parquet")}
-                           else{main_path}) |>
+emissions <- read_parquet(footprint_results_path) |>
   mutate(year = as.integer(time_period)) |>
   filter(year >= as.integer(start_year)) |>
   filter(year <= as.integer(end_year)) |>
@@ -228,6 +228,6 @@ decomposition_changes <- decomposition_final |>
 decomposition_changes
 
 
-ggsave(paste0("./results/figures/decomposition_changes_deflat_",edition ,"_", start_year, "_",end_year ,".pdf"),
+ggsave(file.path(output_dir,paste0("decomposition_changes_deflat_",edition ,"_", start_year, "_",end_year ,".pdf")),
        plot = decomposition_changes, width = 8, height = 6, dpi = 300)
 

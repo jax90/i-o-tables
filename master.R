@@ -27,16 +27,22 @@ rm(list = ls())
 
 # Load all required packages for the project
 message("Loading all required packages...")
-project_packages <- c('tidyverse','data.table','arrow','here','progress','leontief','readxl','countrycode','eurostat',
-                      'xml2','rvest','ggthemes','xtable','ggsankeyfier','jsonlite')
+project_packages <- c('tidyverse','data.table','arrow','here','progress','leontief',
+                      'readxl','countrycode','eurostat','xml2','rvest','ggthemes',
+                      'xtable','ggsankeyfier','jsonlite','stringr','ggplot2','tidyr','arrow',
+                      'curl','tibble','dplyr','purrr','showtext','sysfonts')
 
 lapply(project_packages, library, character.only = TRUE)
 
 # Define global analysis parameters
 # These can be easily changed here to re-run the analysis for different editions or time periods.
 edition    <- "23"
-start_year <- "2010"
+start_year <- "2020"
 end_year   <- "2021"
+
+# --- LOAD UTILS FUNCTIONS ---
+
+source(list.files(here(),full.names = T,pattern = 'utils'))
 
 message(paste0(
   "Analysis configured for FIGARO edition: '", edition,

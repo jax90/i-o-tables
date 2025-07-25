@@ -1,6 +1,3 @@
-x = c("tidyverse","tibble","progress","arrow","curl")
-lapply(x, library,character.only = T)
-
 # --- Initial Data Loading ---
 
 message("Loading and aggregating IOT and Emissions data...")
@@ -129,7 +126,7 @@ eeio_computations <- function(input_output,
     as.data.frame() %>%
     rownames_to_column('resource_id') %>%
     left_join(as.data.frame(Ds) %>% rownames_to_column('resource_id'), by = 'resource_id') %>%
-    left_join(as.data.frame(Int) %>% `colnames<-`(paste0("Intwght_", colnames(.))) %>% rownames_to_column('resource_id'), by = 'resource_id') %>%
+    left_join(as.data.frame(Int) %>% `colnames<-`(paste0("Intwght_", colnames(.))) %>% mutate(resource_id = rownames(L_adjust)), by = 'resource_id') %>%
     mutate(
       total_final_demand = D,
       total_output = X,

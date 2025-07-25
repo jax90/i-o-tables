@@ -1,9 +1,3 @@
-x = c('dplyr','tidyr','tibble','curl','stringr','ggplot2','eurostat','xml2','rvest','data.table','arrow','countrycode','here','readxl')
-
-lapply(x,library,character.only = T)
-
-source(list.files(here(),full.names = T,pattern = 'utils'))
-
 get_value_added_price_index = function(base,
                                        time_serie = 2010:2022,
                                        verbose = T,
