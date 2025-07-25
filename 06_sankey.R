@@ -215,8 +215,8 @@ sankey_figure|>
   )
 
 
-ggsave(file.path(output_dir(paste0("sankey_industry_",edition ,"_", end_year ,".pdf"),
-       width=210, height=120, units="mm")
+ggsave(file.path(output_dir,(paste0("sankey_industry_",edition ,"_", end_year ,".pdf")),
+       width=210, height=120, units="mm"))
 
 # Europe (Schengen + GB)
 europe <- c("AT", "BE", "CY", "DE", "EE", "ES", "FI", "FR", "GR", "IE",
