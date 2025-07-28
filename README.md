@@ -1,9 +1,3 @@
----
-editor_options: 
-  markdown: 
-    wrap: 72
----
-
 # Global Embodied Emissions of Digital Technologies
 
 **Authors:** Janna Axenbeck, Stefanie Kunkel, Joris Blain, Francis
