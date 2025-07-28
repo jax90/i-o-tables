@@ -1,9 +1,3 @@
-x = c('dplyr','tidyr','tibble','curl','stringr','ggplot2','eurostat','xml2','rvest','data.table','arrow','countrycode','here','readxl')
-
-lapply(x,library,character.only = T)
-
-source(list.files(here(),full.names = T,pattern = 'utils'))
-
 get_value_added_price_index = function(base,
                                        time_serie = 2010:2022,
                                        verbose = T,
@@ -18,6 +12,8 @@ get_value_added_price_index = function(base,
     {
       if(verbose) print('Cached data used')
       return(readRDS(file))
+    }else{
+      unlink(file)
     }
   }
 
@@ -25,11 +21,11 @@ get_value_added_price_index = function(base,
 
   if(verbose) print('Downloading UN current and constant VA data...')
 
-  unzip_file = here(if(user =="jax"){paste0("data/", "price_data/UNdata_Export_Constant.csv")}else{"price_data/UNdata_Export_Constant.csv"})
+  unzip_file = here("price_data/UNdata_Export_Constant.csv")
 
   un_price_data_constant = read.csv(unzip_file,check.names = F)
 
-  unzip_file =  here(if(user =="jax"){paste0("data/", "price_data/UNdata_Export_Current.csv")}else{"price_data/UNdata_Export_Current.csv"})
+  unzip_file =  here("price_data/UNdata_Export_Current.csv")
 
   un_price_data_current = read.csv(unzip_file,check.names = F)
 
@@ -109,7 +105,7 @@ get_value_added_price_index = function(base,
            figaro_country = case_when(iso2 %in% figaro_country_list ~ iso2,
                                       T ~ 'FIGW1')) %>%
     group_by(figaro_country,year,code) %>%
-    summarise(index = mean(recalibrated_index,na.rm=T)) %>% #Imply that price index for FIGW1 is retrieved by a simple arithmetic mean. Further work should be undertaken
+    summarise(index = mean(recalibrated_index,na.rm=T),.groups = "drop") %>% #Imply that price index for FIGW1 is retrieved by a simple arithmetic mean. Further work should be undertaken
     group_by(figaro_country,code) %>%
     mutate(index = index / index[year == base]) %>%
     ungroup() %>%
@@ -173,7 +169,7 @@ get_value_added_price_index = function(base,
     group_by(country = geo, industry = FIGARO) %>%
     filter(base %in% TIME_PERIOD) %>%
     group_by(country,industry,year = TIME_PERIOD) %>%
-    summarise(value = mean(OBS_VALUE,na.rm=T)) %>%
+    summarise(value = mean(OBS_VALUE,na.rm=T),.groups = "drop") %>%
     group_by(country, industry) %>%
     reframe(value = value / value[year == base],
             year) %>%
@@ -181,7 +177,7 @@ get_value_added_price_index = function(base,
 
   ####FETCH AND FORMAT CHINESE PPI data
 
-  cn_ppi = read.csv(here(folder = if(user =="jax"){paste0("data/", "price_data/CN_PPIs.csv")}else{"price_data/CN_PPIs.csv"}),
+  cn_ppi = read.csv(here("price_data/CN_PPIs.csv"),
                     skip = 2,
                     header = T,
                     check.names = F) %>%
@@ -219,7 +215,8 @@ get_value_added_price_index = function(base,
     filter(!is.na(FIGARO)) %>%
     group_by(FIGARO,year) %>%
     summarise(value = mean(value),
-              basis = NA) %>%
+              basis = NA,
+              .groups = "drop") %>%
     ungroup()
 
   for(i in unique(cn_ppi$FIGARO))
@@ -250,7 +247,7 @@ get_value_added_price_index = function(base,
   # Click 'Retrieve data'
   # Download and rename the Excel file
 
-  us_ppi = read_xlsx(here( if(user =="jax"){paste0("data/", "price_data/US_PPIs.xlsx")}else{"price_data/US_PPIs.xlsx"}),skip = 2,.name_repair = 'minimal') %>%
+  us_ppi = read_xlsx(here("price_data/US_PPIs.xlsx"),skip = 2,.name_repair = 'minimal') %>%
     pivot_longer(-1,names_to = 'year') %>%
     mutate(year = gsub("Annual\n","",year),
            industry = case_when(`Series ID` == "PCU334---334---" ~ "C26",
