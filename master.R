@@ -66,13 +66,23 @@ source(here("04_main_results.R"))
 message("\n--- STEP 5 of 6: Performing decomposition analysis ---")
 source(here("05_decomposition_time_trends.R"))
 
-message("\n--- STEP 6 of 6: Generating Sankey diagrams ---")
-source(here("06_sankey.R"))
 
+# --- 4. SUPPLEMENTARY ANALYSES (Optional & Computationally Intensive) ---
+# The following scripts are for supplementary analyses and are commented out
+# by default due to their significant resource requirements.
+# To run them, manually uncomment the corresponding lines.
 
-# --- SUPPLEMENTARY ANALYSIS (Optional) ---
-# The uncertainty analysis is a long-running process and is not part of the
-# default pipeline. Uncomment the line below to run it.
+# --- Sankey Diagrams (High Memory Usage) ---
+# Script 06 generates the Sankey flow diagrams. It requires a large amount
+# of memory (RAM) and may fail on machines with limited hardware.
 #
-# message("\n--- OPTIONAL STEP: Running Monte Carlo uncertainty analysis ---")
-# source(here("code", "07_uncertainty_analysis.R"))
+# message("\n--- SUPPLEMENTARY: Generating Sankey diagrams ---")
+# source(here("06_sankey.R"))
+
+
+# --- Monte Carlo Uncertainty Analysis (Very Time-Consuming) ---
+# Script 07 performs the Monte Carlo uncertainty analysis. It is extremely
+# time-consuming (potentially several hours).
+#
+# message("\n--- SUPPLEMENTARY: Running Monte Carlo uncertainty analysis ---")
+# source(here("07_uncertainty_analysis.R"))

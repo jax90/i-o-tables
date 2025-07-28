@@ -64,8 +64,8 @@ specific 2023 edition dataset is available upon request from Eurostat.
 ### **Workflow B: Using the Latest Data (Online Mode)**
 
 Use this mode to run the same analytical model on the most recent public
-data. The script will automatically fetch: \* FIGARO Input-Output Tables
-(**2025 Edition**) \* GHG Emissions Footprints (**2024 Estimates**)
+data. The script will automatically fetch: FIGARO Input-Output Tables
+(**2025 Edition**) GHG Emissions Footprints (**2024 Estimates**)
 
 1.  **Configure `master.R`:** Open the `master.R` script. Ensure that
     the `data_directory` line at the top is **commented out** or
@@ -109,11 +109,33 @@ correct sequence.
 -   **`utils.R` (Utility Functions):** A collection of helper functions
     used across multiple scripts.
 
-Of course. You are right, integrating the notes directly into the most
-relevant sections is cleaner.
+## 4. License
 
-Here is the markdown for the two notes, formatted to be seamlessly
-integrated into your existing `README.md`.
+This project is licensed under the GNU General Public License v3.0.
+
+The GPL is a strong "copyleft" license, which means that any derivative works (e.g., modified or extended versions of this code that are distributed) must also be licensed under the same or a compatible license. We chose the GPL to ensure that any improvements or extensions to this research code remain open and accessible to the entire community.
+
+A full copy of the license is available in the LICENSE file included in this repository. You can also read the full text online here:
+https://www.gnu.org/licenses/gpl-3.0.en.html.
+
+## Supplementary Analyses (Computationally Intensive)
+
+The `master.R` script is configured to run the main analysis pipeline by
+default. Two supplementary scripts are included but are **commented
+out** due to their significant resource requirements. To run them, you
+must manually uncomment the corresponding `source()` lines in
+`master.R`.
+
+-   **`06_sankey.R`:** This script generates the Sankey flow diagrams.
+    Please be aware that it involves large matrix operations and has
+    **high memory (RAM) requirements**. It may not run successfully on
+    machines with limited hardware configurations.
+
+-   **`07_uncertainty_analysis.R`:** This script performs the
+    Monte-Carlo sensitivity analysis. As it involves inverting large
+    matrices repeatedly for each draw, it is **extremely
+    time-consuming**. Replicating a sufficient number of draws takes
+    several hours to complete.
 
 ### Note on the `price_data` subfolder
 
