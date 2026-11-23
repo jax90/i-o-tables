@@ -215,8 +215,8 @@ sankey_figure|>
   )
 
 
-ggsave(file.path(output_dir,(paste0("sankey_industry_",edition ,"_", end_year ,".pdf")),
-       width=210, height=120, units="mm"))
+ggsave(file.path(output_dir,(paste0("sankey_industry_",edition ,"_", end_year ,".pdf"))),
+       width=210, height=120, units="mm")
 
 # Europe (Schengen + GB)
 europe <- c("AT", "BE", "CY", "DE", "EE", "ES", "FI", "FR", "GR", "IE",
@@ -376,7 +376,7 @@ sankey_figure |>
   )
 
 
-ggsave(paste0("./results/figures/sankey_country_",edition ,"_", end_year, ".pdf"),
+ggsave(file.path(output_dir,paste0("sankey_country_",edition ,"_", end_year, ".pdf")),
        width=210, height=120, units="mm")
 
 df <-
@@ -567,7 +567,7 @@ sankey_figure|>
   )
 
 
-ggsave(file.path(output_dir,"sankey_industry_",edition ,"_", start_year,".pdf"), width=210, height=120, units="mm")
+ggsave(file.path(output_dir,paste0("sankey_industry_",edition ,"_", start_year,".pdf")), width=210, height=120, units="mm")
 
 sankey_prepare <- transfer_of_emissions |>  as.tibble() |>
   mutate(industry_ref_area = rel_industries) |>
@@ -710,5 +710,5 @@ sankey_figure |>
   )
 
 
-ggsave(file.path(output_dir,paste0("sankey_country_", edition ,"_", start_year,".pdf"), width=210, height=120, units="mm")
+ggsave(file.path(output_dir,paste0("sankey_country_", edition ,"_", start_year,".pdf")), width=210, height=120, units="mm")
 #

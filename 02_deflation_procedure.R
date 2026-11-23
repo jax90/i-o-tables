@@ -156,10 +156,10 @@ get_value_added_price_index = function(base,
                               T ~ nace_r2)) %>%
     group_by(country = geo, industry = FIGARO) %>%
     filter(base %in% TIME_PERIOD) %>%
-    reframe(value = OBS_VALUE / OBS_VALUE[TIME_PERIOD == base],
+    reframe(value = OBS_VALUE[TIME_PERIOD == base] / OBS_VALUE,
             year = TIME_PERIOD)
 
-  eu_sppi = read.csv("https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/sts_sepp_a/A.PRC_PRR+PRC_PRR_B2B.H-N_STS+H49+H50+H51+H52+H53+I+J+J58+J59+J60+J61+J62_J63+L+M69_M702+M71+M73+M74+N77+N78+N79+N80+N81+N82.NSA.I21+I15+I10+PCH_SM.?format=SDMX-CSV&startPeriod=2010") %>%
+  eu_sppi = read.csv("https://ec.europa.eu/eurostat/api/dissemination/sdmx/2.1/data/sts_sepp_a/A.PRC_PRR+PRC_PRR_B2B.H-N_STS+H49+H50+H51+H52+H53+I+J+J58+J59+J60+J61+J62_J63+L+M69_M702+M71+M73+M74+N77+N78+N79+N80+N81+N82.NSA.I21.?format=SDMX-CSV&startPeriod=2010") %>%
     mutate(FIGARO = case_when(nace_r2 %in% c("J59","J60") ~ "J59_60",
                               nace_r2 == "J62_J63" ~ "J62_63",
                               nace_r2 == "M69_M702" ~ "M69_70",
@@ -171,7 +171,7 @@ get_value_added_price_index = function(base,
     group_by(country,industry,year = TIME_PERIOD) %>%
     summarise(value = mean(OBS_VALUE,na.rm=T),.groups = "drop") %>%
     group_by(country, industry) %>%
-    reframe(value = value / value[year == base],
+    reframe(value = value[year == base] / value,
             year) %>%
     filter(!is.na(value))
 
@@ -228,7 +228,7 @@ get_value_added_price_index = function(base,
       cn_ppi$basis[j] = 100 * prod(cn_ppi$value[range[1]:j]/100)
     }
 
-    cn_ppi$basis[range] = cn_ppi$basis[range] / cn_ppi$basis[cn_ppi$FIGARO == i & cn_ppi$year == base]
+    cn_ppi$basis[range] = cn_ppi$basis[cn_ppi$FIGARO == i & cn_ppi$year == base] / cn_ppi$basis[range]
 
   }
 
@@ -254,7 +254,7 @@ get_value_added_price_index = function(base,
                                 `Series ID` == "PCU5182105182104" ~ "J62_63",
                                 `Series ID` == "PCU517---517---" ~ "J61")) %>%
     group_by(industry) %>%
-    mutate(value = value / value[year == base])
+    mutate(value = value[year == base] / value)
 
 
   if(verbose) print("Inserting additional PPI data into the price table...")

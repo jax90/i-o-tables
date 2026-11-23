@@ -35,16 +35,17 @@ message("Loading and preparing data for visualizations...")
 
 # Get deflated output for 'share of output' metric
 values_agg <- format_iot(
-  folder = file.path(data_directory, "values"),
-  exdir = file.path(data_directory, "values"),
+  folder = data_directory,
+  exdir = data_directory,
   update = FALSE,
   edition = edition
 )
 
 if("resource_id" %in% colnames(values_agg)) values_agg = values_agg %>% rename(rowLabels = resource_id)
 
-price_index <- get_value_added_price_index(2021, update = FALSE) |>
-  rename(deflator = value, ref_area = country, time_period = year) |>
+if (as.integer(end_year) <= 2022) { # no price indices after 2022
+price_index <- get_value_added_price_index(as.integer(end_year), update = FALSE) %>%
+  rename(deflator = value, ref_area = country, time_period = year) %>%
   select(-base)
 
 values_agg_deflated <- values_agg %>%
@@ -52,9 +53,13 @@ values_agg_deflated <- values_agg %>%
   full_join(price_index, by = c("ref_area", "industry", "time_period")) |>
   mutate(across(where(is.numeric), ~ .x * deflator)) |>
   select(-c("ref_area", "industry", "deflator"))
+} else {
+  price_index <- NULL
+  values_agg_deflated <- values_agg
+}
 
 prd <- values_agg_deflated %>%
-  pivot_longer(-c(rowLabels, time_period)) %>%
+  mutate(value = rowSums(across(where(is.numeric)), na.rm = TRUE)) %>%
   filter(!grepl('W2', rowLabels)) %>%
   group_by(time_period) %>%
   summarise(
@@ -65,10 +70,10 @@ rm(values_agg, price_index, values_agg_deflated)
 
 footprint_results_path <- file.path(data_directory, paste0("footprint_results_", edition, "_data.parquet"))
 
-emissions <- read_parquet(footprint_results_path) |>
-  separate(resource_id, into = c('country', 'industry'), extra = 'merge', sep = "_") |>
-  mutate(year = as.integer(time_period)) |>
-  filter(year >= as.integer(start_year), year <= as.integer(end_year)) |>
+emissions <- read_parquet(footprint_results_path, col_select = c(resource_id, time_period, direct_emissions, absolute_emissions, total_output, starts_with("embodied_emissions"), starts_with("scope"))) %>%
+  separate(resource_id, into = c('country', 'industry'), extra = 'merge', sep = "_") %>%
+  mutate(year = as.integer(time_period)) %>%
+  filter(year >= as.integer(start_year), year <= as.integer(end_year)) %>%
   select(-year)
 
 df <- emissions |>
@@ -87,7 +92,7 @@ fig_frame <- emissions %>%
   group_by(time_period) %>%
   summarise(
     direct_emissions = sum(direct_emissions,na.rm=T),
-    share_footprint = sum(production_footprint, na.rm = TRUE) / sum(direct_emissions, na.rm = TRUE),
+    share_footprint = sum(production_footprint, na.rm = TRUE) / first(absolute_emissions),
     total_footprint = sum(production_footprint, na.rm = TRUE)
   ) %>%
   left_join(prd, by = 'time_period')
@@ -227,15 +232,15 @@ scope_comparison <- scopes_industry |>
   filter(year == end_year | year == start_year) |>
   pivot_wider(names_from = "year", values_from = "value") |>
   mutate(
-    "change_in_percent" = (`2021` - `2010`) / `2010` * 100
+    "change_in_percent" = (.data[[end_year]] - .data[[start_year]]) / .data[[start_year]] * 100
   ) |>
   group_by(industry) |>
   mutate(
-    "relative_2010" = `2010` / sum(`2010`),
-    "relative_2021" = `2021` / sum(`2021`)
+    "relative_{start_year}" := .data[[start_year]] / sum(.data[[start_year]]),
+    "relative_{end_year}" := .data[[end_year]] / sum(.data[[end_year]])
   ) |>
   ungroup() |>
-  mutate(across(c(`2010`, `2021`), ~ as.integer(round(.x / 1000))))
+  mutate(across(all_of(c(start_year, end_year)), ~ as.integer(round(.x / 1000))))
 
 scope_comparison |> xtable()
 
@@ -249,24 +254,25 @@ final_emissions <- fig_frame_industry |>
   filter(industry != "mediated via other industries") |>
   mutate(type = "final demand")
 
-total_demand_emissions <- scope_comparison |>
-  group_by(industry, year = "2010") |>
-  summarise(embodied_emissions = sum(`2010`)) |>
+total_demand_emissions <- scope_comparison %>%
+  group_by(industry, year = start_year) %>%
+  summarise(embodied_emissions = sum(.data[[start_year]])) %>%
   bind_rows(
-    scope_comparison |> group_by(industry, year = "2021") |> summarise(embodied_emissions = sum(`2021`))
-  ) |>
+    scope_comparison %>% group_by(industry, year = end_year) %>% summarise(embodied_emissions = sum(.data[[end_year]]))
+  ) %>%
+  distinct() %>%
   mutate(type = "total demand")
 
-total_emissions <- final_emissions |>
-  bind_rows(total_demand_emissions) |>
-  pivot_wider(names_from = type, values_from = embodied_emissions) |>
-  mutate(mediated = `total demand` - `final demand`) |>
-  select(year, industry, mediated) |>
-  group_by(industry) |>
-  mutate(change_in_percent = (mediated[year == "2021"] / mediated[year == "2010"] - 1) * 100) |>
-  ungroup() |>
-  pivot_wider(names_from = year, values_from = mediated) |>
-  arrange(desc(industry)) |>
-  select(industry, `2010`, `2021`, change_in_percent)
+total_emissions <- final_emissions %>%
+  bind_rows(total_demand_emissions) %>%
+  pivot_wider(names_from = type, values_from = embodied_emissions) %>%
+  mutate(mediated = `total demand` - `final demand`) %>%
+  select(year, industry, mediated) %>%
+  group_by(industry) %>%
+  mutate(change_in_percent = (mediated[year == end_year] / mediated[year == start_year] - 1) * 100) %>%
+  ungroup() %>%
+  pivot_wider(names_from = year, values_from = mediated) %>%
+  arrange(desc(industry)) %>%
+  select(industry, all_of(c(start_year, end_year)), change_in_percent)
 
 total_emissions |> xtable()

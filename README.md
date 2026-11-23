@@ -59,7 +59,7 @@ specific 2023 edition dataset is available upon request from Eurostat.
 
 Use this mode to run the same analytical model on the most recent public
 data. The script will automatically fetch: FIGARO Input-Output Tables
-(**2025 Edition**) GHG Emissions Footprints (**2024 Estimates**)
+(**2026 Edition**, years 2010-2024) GHG Emissions Footprints (**env_ac_ghgfp**, years 2010-2024)
 
 1.  **Configure `master.R`:** Open the `master.R` script. Ensure that
     the `data_directory` line at the top is **commented out** or

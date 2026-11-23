@@ -37,7 +37,7 @@ lapply(project_packages, library, character.only = TRUE)
 # Define global analysis parameters
 # These can be easily changed here to re-run the analysis for different editions or time periods.
 edition    <- "23"
-start_year <- "2020"
+start_year <- "2010"
 end_year   <- "2021"
 
 # --- LOAD UTILS FUNCTIONS ---

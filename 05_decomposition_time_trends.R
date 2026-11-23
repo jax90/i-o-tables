@@ -132,6 +132,8 @@ intensity_ICT <- emissions |>
 
 colnames(intensity_ICT) <- sub("Intwght_", "", colnames(intensity_ICT))
 
+intensity_ICT <- bind_rows(lapply(split(intensity_ICT, intensity_ICT$time_period), function(intensity_ICT) {
+
 intensity_ICT <- intensity_ICT |>
   pivot_longer(
     cols = -c(time_period,  emissions_per_output),
@@ -158,6 +160,8 @@ intensity_ICT <- intensity_ICT |>
 intensity_ICT <- intensity_ICT|>
   summarise(emission_intensity = weighted.mean(x =emissions_per_output  , w = weight, na.rm = TRUE), .by = c(time_period, ICT)) |>
   drop_na()
+
+}))
 
 intensity_ICT <- intensity_ICT |>
   group_by(ICT) |>

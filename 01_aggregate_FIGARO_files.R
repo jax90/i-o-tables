@@ -15,20 +15,21 @@ download_figaro_data <- function(folder, verbose) {
 
   links =
     matrix(byrow = T,ncol = 2,
-           data = c('2010', 'https://circabc.europa.eu/rest/download/fc80f855-d144-476e-b4bf-5cfba946819c',
-                    '2011', 'https://circabc.europa.eu/rest/download/1bcb2624-04ed-43e1-8588-df6680ed352a',
-                    '2012', 'https://circabc.europa.eu/rest/download/399671ad-cbb3-493e-ad5f-83e989f1eecc',
-                    '2013', 'https://circabc.europa.eu/rest/download/a2b4746d-1d11-4a44-ab1c-50ac956f0849',
-                    '2014', 'https://circabc.europa.eu/rest/download/beba57b2-2696-497a-b92f-2a5beca724c7',
-                    '2015', 'https://circabc.europa.eu/rest/download/1a194b8c-6ea1-4bec-9c73-0cd599febcc3',
-                    '2016', 'https://circabc.europa.eu/rest/download/2cdd74fc-0bce-4ae0-8bf2-34d34546d86d',
-                    '2017', 'https://circabc.europa.eu/rest/download/4a11c796-4186-4cce-a02f-12d353fc5e59',
-                    '2018', 'https://circabc.europa.eu/rest/download/7a57a374-2200-498c-bb5f-cee24202b0b8',
-                    '2019', 'https://circabc.europa.eu/rest/download/c3467617-8a00-44a0-9b6b-ccad8a2ab58d',
-                    '2020', 'https://circabc.europa.eu/rest/download/4df668e1-2a8a-4e84-ae57-00309d8bc760',
-                    '2021', 'https://circabc.europa.eu/rest/download/6736dea8-da14-450f-b212-a791baf238c8',
-                    '2022', 'https://circabc.europa.eu/rest/download/b20c339d-984f-413c-a499-54ff76beb90c'#,
-                    #'2023', 'https://circabc.europa.eu/rest/download/21557f49-1e94-431c-8523-d972fec020b8')
+           data = c('2010', 'https://circabc.europa.eu/rest/download/810676bb-e3d8-4abe-a75e-c4fc5d059f1e',
+                    '2011', 'https://circabc.europa.eu/rest/download/dcbc0884-f4e4-46af-bf3f-462937f59ee3',
+                    '2012', 'https://circabc.europa.eu/rest/download/38e5a3a3-1ae1-408b-8901-153ef6652829',
+                    '2013', 'https://circabc.europa.eu/rest/download/42d4f65d-3c5b-4eb3-8391-46314801b359',
+                    '2014', 'https://circabc.europa.eu/rest/download/85d3f6de-3510-45ff-96c9-11da9f1e325a',
+                    '2015', 'https://circabc.europa.eu/rest/download/e989cc76-52f5-4cd9-ba8c-5764fafde13a',
+                    '2016', 'https://circabc.europa.eu/rest/download/2e7bc8e5-ee0c-4e57-a082-60a9fb59ee73',
+                    '2017', 'https://circabc.europa.eu/rest/download/0bd4147b-d06b-4800-87e4-c479352e88ba',
+                    '2018', 'https://circabc.europa.eu/rest/download/40c2349e-1ba7-48b5-b4a3-4f00b78f2283',
+                    '2019', 'https://circabc.europa.eu/rest/download/ba9d7f3a-a381-49f2-998d-64fec81c3d35',
+                    '2020', 'https://circabc.europa.eu/rest/download/28d77fbf-50c2-475c-8ba6-c97b02a69039',
+                    '2021', 'https://circabc.europa.eu/rest/download/57fd3555-51db-4f03-b765-3cb7fcfe3007',
+                    '2022', 'https://circabc.europa.eu/rest/download/f1330ee5-2841-4f3a-949c-20f36d068714',
+                    '2023', 'https://circabc.europa.eu/rest/download/836a0346-bdb5-4d8a-bbea-b3bd583a53c9',
+                    '2024', 'https://circabc.europa.eu/rest/download/8ac7da34-911e-4a91-ab1c-8aec1a574381'
            ))
 
   result = c()
@@ -44,7 +45,7 @@ download_figaro_data <- function(folder, verbose) {
 
     if(verbose) message("Requested year = ",year,". Fetched file = ",header_file)
 
-    if(verbose) message("Aggregate FIGARO ed25 to match AEA ed24 format...")
+    if(verbose) message("Aggregate FIGARO ed26 to match AEA ed24 format...")
 
     dt = fread(rawToChar(curl_file$content))
     setnames(dt, 1, "resource_id")
@@ -95,11 +96,13 @@ download_figaro_data <- function(folder, verbose) {
                    dcast(agg, resource_id ~ use_id, value.var = "value", fill = 0) %>% mutate(time_period = year))
 
     if(verbose) message("FIGARO formatting done for year ",year)
+
+    rm(curl_file, dt, dt_long, agg); gc() # free memory
   }
 
-  write_parquet(result, file.path(folder,"values_agg_25.parquet"))
+  write_parquet(result, file.path(folder,"values_agg_26.parquet"))
 
-  if(verbose) message("Online FIGARO version stored in ",file.path(folder,"values_agg_25.parquet"))
+  if(verbose) message("Online FIGARO version stored in ",file.path(folder,"values_agg_26.parquet"))
 
 }
 
@@ -132,6 +135,7 @@ download_emissions_data = function(folder,verbose) {
         c_orig  == "EL"       ~ "GR",   # Greece old code
         c_orig  == "UK"       ~ "GB",   # United Kingdom ISO‑2
         c_orig  == "WRL_REST" ~ "FIGW1",# Rest‑of‑World aggregate
+        c_orig %in% c("AL","ME","MK","RS") ~ "FIGW1", # countries outside figaro_country_list merged into FIGW1
         TRUE                  ~ c_orig
       )
     ) %>%
@@ -146,9 +150,9 @@ download_emissions_data = function(folder,verbose) {
     ungroup()
 
 
-  write_parquet(ghg_eurostat, file.path(folder,"ghgFootprint_25ed.parquet"))
+  write_parquet(ghg_eurostat, file.path(folder,"ghgFootprint_26ed.parquet"))
 
-  if(verbose) message("Formatted emissions data stored in ",file.path(folder,"ghgFootprint_25ed.parquet"))
+  if(verbose) message("Formatted emissions data stored in ",file.path(folder,"ghgFootprint_26ed.parquet"))
 
 
 }
@@ -174,7 +178,7 @@ format_emissions <- function(folder, exdir, update = FALSE, verbose = TRUE, edit
 
     download_emissions_data(folder = folder,verbose = verbose)
 
-    df = read_parquet(file.path(folder,"ghgFootprint_25ed.parquet"))
+    df = read_parquet(file.path(folder,"ghgFootprint_26ed.parquet"))
 
   }else{
 
@@ -185,9 +189,9 @@ format_emissions <- function(folder, exdir, update = FALSE, verbose = TRUE, edit
   pb <- progress::progress_bar$new(
     format = "  Reading emission files [:bar] :percent", total = length(filenames), width = 60)
 
-  if(tools::file_ext(filenames) == 'csv') df <- purrr::map_dfr(filenames, ~{pb$tick(); fread(.x)})
+  if(all(tools::file_ext(filenames) == 'csv')) df <- purrr::map_dfr(filenames, ~{pb$tick(); fread(.x)})
 
-  if(tools::file_ext(filenames) == 'parquet') df <- read_parquet(filenames)
+  if(all(tools::file_ext(filenames) == 'parquet')) df <- read_parquet(filenames)
 
   }
 
@@ -204,9 +208,9 @@ format_emissions <- function(folder, exdir, update = FALSE, verbose = TRUE, edit
 
   if (verbose) message("Writing aggregated emissions data to cache: ", output_file)
 
-  write_parquet(df, file.path(folder,"co2e_emission_agg_25.parquet"))
+  write_parquet(df, output_file)
 
-  if(verbose) message("Formatted emissions data stored in ",file.path(folder,"co2e_emission_agg_25.parquet"))
+  if(verbose) message("Formatted emissions data stored in ",output_file)
 
   return(df)
 
@@ -237,11 +241,11 @@ format_iot <- function(folder, exdir, update = FALSE, verbose = TRUE, edition) {
 
   #Else, fetch the online version
 
-  output_file = file.path(exdir, "values_agg_25.parquet")
+  output_file = file.path(exdir, "values_agg_26.parquet")
 
-  if (!update && file.exists(file.path(exdir, "values_agg_25.parquet"))) {
+  if (!update && file.exists(file.path(exdir, "values_agg_26.parquet"))) {
 
-    message("Local MRIOT edition 20",edition," not found. Returning cached 2025 edition")
+    message("Local MRIOT edition 20",edition," not found. Returning cached 2026 edition")
 
     if (verbose) message("Returning cached IOT data from: ", output_file)
     return(read_parquet(output_file))
@@ -253,7 +257,7 @@ format_iot <- function(folder, exdir, update = FALSE, verbose = TRUE, edition) {
 
     download_figaro_data(folder = folder, verbose = verbose)
 
-    df = list.files(folder, pattern = "values_agg_25", full.names = TRUE) %>%
+    df = list.files(folder, pattern = "values_agg_26", full.names = TRUE) %>%
       read_parquet()
 
     return(df)

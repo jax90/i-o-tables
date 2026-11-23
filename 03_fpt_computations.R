@@ -69,9 +69,8 @@ eeio_computations <- function(input_output,
 
   for (i in selected_industry_num) {
     Int <- Int + (1 / L_adjust[i, i] * L_adjust[, i] %*% t(L_adjust[i, ]))
+    L_adjust <- L - Int
   }
-
-  L_adjust <- L - Int
 
   # --- Final Demand Footprint Computation ---
   if (verbose) message("    Computing final demand footprints...")
@@ -107,14 +106,16 @@ eeio_computations <- function(input_output,
       as_tibble(rownames = "industry_ref_area") %>%
       filter(grepl("D35", industry_ref_area)) %>%
       select(matches(industry)) %>%
-      mutate(across(everything(), ~ .x * B$value[grepl("D35", emissions_year$resource_id)][1])) %>%
+      mutate(across(everything(), ~ .x * B$value[grepl("D35", emissions_year$resource_id)])) %>%
       sum()
 
     # Embodied emissions calculation specific to this industry
     Int_i <- matrix(0, nrow = dim(L)[1], ncol = dim(L)[1])
     selected_industry_num_i <- grep(industry, colnames(x = L))
+    L_adjust <- L
     for (i in selected_industry_num_i) {
-      Int_i <- Int_i + (1 / L[i, i] * L[, i] %*% t(L[i, ]))
+      Int_i <- Int_i + (1 / L_adjust[i, i] * L_adjust[, i] %*% t(L_adjust[i, ]))
+      L_adjust <- L - Int_i
     }
 
     scope3[[industry]] <- t(B) %*% Int_i %*% as.matrix(D) - scope1[[industry]] - scope2[[industry]]
@@ -160,11 +161,14 @@ eeio_analysis <- function(values_agg,
   }
   if (verbose) message("Cache not found or update forced. Starting new analysis...")
 
+  if("resource_id" %in% colnames(values_agg)) values_agg = values_agg %>% rename(rowLabels = resource_id)
+
   # --- Optional Deflation Block ---
   if (deflate) {
     if (is.null(basis) || !is.numeric(basis)) {
       stop("'basis' must be a valid numeric year when deflate = TRUE.")
     }
+
     if (verbose) message(paste0("Deflating economic data to constant ", basis, " prices..."))
 
 
@@ -172,8 +176,6 @@ eeio_analysis <- function(values_agg,
       rename(deflator = value, ref_area = country, time_period = year) |>
       select(-base) %>%
       filter(time_period %in% unique(values_agg$time_period))
-
-    if("resource_id" %in% colnames(values_agg)) values_agg = values_agg %>% rename(rowLabels = resource_id)
 
     values_agg <- values_agg %>%
       separate(rowLabels, into = c('ref_area', 'industry'), sep = "_", remove = FALSE, extra = 'merge') %>%
@@ -210,7 +212,7 @@ eeio_analysis <- function(values_agg,
 
     emissions_year <- emissions %>%
       filter(time_period == current_period, !grepl("HH", resource_id)) %>%
-      arrange(resource_id)
+      slice(match(rownames(input_output), resource_id))
 
     results <- eeio_computations(input_output, emissions_year, verbose) %>%
       mutate(time_period = current_period)

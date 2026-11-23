@@ -8,7 +8,7 @@ lapply(lapply(c('utils.R'),here),source)
 mc_sensitivity_analysis = function(values_agg,
                                    emissions,
                                    time_period = end_year,
-                                   exdir = main_path,
+                                   exdir = data_directory,
                                    n,
                                    basis = end_year,
                                    sim = c('emissions','interactions'),
@@ -18,21 +18,23 @@ mc_sensitivity_analysis = function(values_agg,
 
   if(verbose) print("Prepare MRIOT and emissions' stressor...")
 
+  if("resource_id" %in% colnames(values_agg)) values_agg = values_agg %>% rename(rowLabels = resource_id)
+
   input_output =
     values_agg %>%
-    filter(time_period == time_period) |>
+    filter(time_period == !!time_period) |>
     select(!time_period) %>%
     filter(rowLabels %in% colnames(.)) %>% #rm W2 components (essentially value added and TLS)
     column_to_rownames('rowLabels')
 
   E = emissions %>%
     filter(time_period == !!time_period) %>%
-    filter(industry != "HH") %>%
-    arrange(country,industry)
+    filter(!grepl("HH", resource_id)) %>%
+    slice(match(rownames(input_output), resource_id))
 
     #create a folder to store the associated analysis
 
-    subfolder = paste0(main_path,"/results/Wilting")
+    subfolder = paste0(data_directory,"/results/Wilting")
 
     if(!dir.exists(subfolder)) dir.create(subfolder,showWarnings = F,recursive = T)
 
